@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { autoPlaceLots, deriveActual } from './scheduling';
 
-const shift = { startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks: [] };
+const shift = {
+  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks: [], productionStartMin: 420,
+};
 
 describe('deriveActual', () => {
   it('returns only lots that have started by nowMin', () => {
     const plan = autoPlaceLots([{ productCode: '2TR', count: 4 }], shift);
-    // slots: 420,425,430,435. now=431 -> 420,425,430 started
+    // slots (240s = 4min pitch): 420,424,428,432. now=431 -> first 3 started
     const act = deriveActual(plan, 431);
-    expect(act.map((l) => l.startMin)).toEqual([420, 425, 430]);
+    expect(act.map((l) => l.startMin)).toEqual([420, 424, 428]);
   });
 
   it('returns empty before the shift begins', () => {

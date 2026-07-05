@@ -3,14 +3,14 @@ import { autoPlaceLots } from './scheduling';
 import type { ShiftConfig } from '../domain/types';
 
 const shift = (breaks: ShiftConfig['breaks'] = []): ShiftConfig => ({
-  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks,
+  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks, productionStartMin: 420,
 });
 
 describe('autoPlaceLots', () => {
-  it('places lots back-to-back in 5-minute slots from shift start', () => {
+  it('places lots on a fixed 240s (4min) pitch, each occupying 1 minute', () => {
     const lots = autoPlaceLots([{ productCode: '2TR', count: 3 }], shift());
     expect(lots.map((l) => [l.startMin, l.endMin])).toEqual([
-      [420, 425], [425, 430], [430, 435],
+      [420, 421], [424, 425], [428, 429],
     ]);
   });
 
@@ -25,10 +25,12 @@ describe('autoPlaceLots', () => {
   });
 
   it('skips over a break block instead of overlapping it', () => {
-    const brk = [{ type: 'WAKOM1' as const, label: 'W', startMin: 425, endMin: 435 }];
+    const brk = [{
+      id: 'b1', type: 'WAKOM1' as const, label: 'W', startMin: 424, endMin: 434,
+    }];
     const lots = autoPlaceLots([{ productCode: '2TR', count: 3 }], shift(brk));
-    // first at 420-425, break 425-435 skipped, then 435-440, 440-445
-    expect(lots.map((l) => l.startMin)).toEqual([420, 435, 440]);
+    // first at 420-421, break 424-434 skipped, then resume at 434, 438
+    expect(lots.map((l) => l.startMin)).toEqual([420, 434, 438]);
   });
 
   it('marks nothing as shifted on initial placement', () => {

@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { hourRange, colSpan } from './grid';
 
-const shift = { startMin: 420, endMin: 1140, pic: '', shiftNo: 1, tTimeSec: 48, breaks: [] };
+const shift = {
+  startMin: 420, endMin: 1140, pic: '', shiftNo: 1, tTimeSec: 48, breaks: [], productionStartMin: 420,
+};
 
 describe('grid', () => {
   it('lists one hour-start per row from 07:00 to 18:00', () => {

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { nowMinOfDay } from '../lib/time';
+import type { ShiftConfig } from '../domain/types';
+import { nowMinForShift } from '../lib/time';
 
-export function useNowMin(): number {
-  const [min, setMin] = useState(() => nowMinOfDay());
+export function useNowMin(shift: ShiftConfig): number {
+  const [min, setMin] = useState(() => nowMinForShift(shift));
   useEffect(() => {
-    const id = setInterval(() => setMin(nowMinOfDay()), 15_000);
+    const id = setInterval(() => setMin(nowMinForShift(shift)), 15_000);
     return () => clearInterval(id);
-  }, []);
+  }, [shift]);
   return min;
 }

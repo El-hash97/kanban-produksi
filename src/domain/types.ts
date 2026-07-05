@@ -2,7 +2,7 @@ export type ProductCode = '2TR' | '1TR' | 'KAI' | 'CRANK';
 
 export type BreakType =
   | 'DANDORI' | 'WAKOM1' | 'WAKOM2'
-  | 'ISTIRAHAT1' | 'ISTIRAHAT' | 'MAGHRIB';
+  | 'ISTIRAHAT1' | 'ISTIRAHAT' | 'MAGHRIB' | 'CUSTOM';
 
 export interface Range {
   startMin: number;
@@ -10,6 +10,7 @@ export interface Range {
 }
 
 export interface Break extends Range {
+  id: string;
   type: BreakType;
   label: string;
 }
@@ -21,6 +22,10 @@ export interface ShiftConfig {
   shiftNo: number;
   tTimeSec: number;
   breaks: Break[];
+  /** Clock time the first lot should be generated from. Defaults to right
+   * after Dandori, but is independently editable (e.g. production may be
+   * meant to start at a round 07:15 rather than exactly when Dandori ends). */
+  productionStartMin: number;
 }
 
 export interface Product {

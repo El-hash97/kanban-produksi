@@ -1,15 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { toHHmm } from '../lib/time';
 import TimeSelect from './TimeSelect';
 
 export default function LineStopPanel() {
+  const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const lineStops = useBoardStore((s) => s.lineStops);
   const addLineStop = useBoardStore((s) => s.addLineStop);
   const removeLineStop = useBoardStore((s) => s.removeLineStop);
-  const [start, setStart] = useState(8 * 60 + 45);
-  const [end, setEnd] = useState(8 * 60 + 50);
+  const [start, setStart] = useState(shiftConfig.startMin);
+  const [end, setEnd] = useState(shiftConfig.startMin + 5);
   const [ket, setKet] = useState('');
+
+  // Keep the form's default time inside the active shift's own window.
+  useEffect(() => {
+    setStart(shiftConfig.startMin);
+    setEnd(shiftConfig.startMin + 5);
+  }, [shiftConfig.shiftNo, shiftConfig.startMin]);
 
   const submit = () => {
     if (end <= start || !ket.trim()) return;
@@ -18,12 +25,12 @@ export default function LineStopPanel() {
   };
 
   return (
-    <div className="border-2 border-red-600/70 text-white text-xs">
+    <div className="text-white text-xs">
       <div className="bg-red-900/40 px-2 py-1 font-bold text-green-400">INFORMASI LINE STOP</div>
 
       <div className="flex flex-wrap items-center gap-2 p-2 border-b border-red-600/40">
-        <span>Mulai</span><TimeSelect value={start} onChange={setStart} />
-        <span>Selesai</span><TimeSelect value={end} onChange={setEnd} />
+        <span>Mulai</span><TimeSelect value={start} onChange={setStart} shift={shiftConfig} />
+        <span>Selesai</span><TimeSelect value={end} onChange={setEnd} shift={shiftConfig} />
         <input
           className="bg-black border border-cyan-500 px-1 flex-1 min-w-[8rem]"
           placeholder="Keterangan (mis. F.Releasing LS Fault)"

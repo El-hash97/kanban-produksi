@@ -4,6 +4,7 @@ import { useBoardStore } from '../store/boardStore';
 
 export default function BoardHeader() {
   const shift = useBoardStore((s) => s.shiftConfig);
+  const setShiftNo = useBoardStore((s) => s.setShiftNo);
   const [now, setNow] = useState(() => dayjs());
   useEffect(() => {
     const id = setInterval(() => setNow(dayjs()), 1000);
@@ -29,7 +30,17 @@ export default function BoardHeader() {
       </div>
       <div className="px-3 py-1 text-xs border-l border-cyan-500/40">
         <div>PIC : <span className="text-cyan-300">{shift.pic}</span></div>
-        <div>SHIFT : {shift.shiftNo}</div>
+        <div className="flex items-center gap-1">
+          SHIFT :
+          <select
+            className="bg-black border border-cyan-500 text-cyan-300 px-1"
+            value={shift.shiftNo}
+            onChange={(e) => setShiftNo(Number(e.target.value))}
+          >
+            <option value={1}>1 (07:00–19:00)</option>
+            <option value={2}>2 (19:00–07:00)</option>
+          </select>
+        </div>
         <div>T.TIME : {shift.tTimeSec}</div>
       </div>
       <div className="px-3 py-1 text-right border-l border-cyan-500/40">

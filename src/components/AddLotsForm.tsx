@@ -1,24 +1,23 @@
 import { useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import type { ProductCode } from '../domain/types';
+import TimeSelect from './TimeSelect';
 
 export default function AddLotsForm() {
-  const products = useBoardStore((s) => s.products);
+  const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const addLots = useBoardStore((s) => s.addLots);
+  const setProductionStart = useBoardStore((s) => s.setProductionStart);
   const resetBoard = useBoardStore((s) => s.resetBoard);
-  const [code, setCode] = useState<ProductCode>('2TR');
   const [count, setCount] = useState(1);
 
   return (
-    <div className="flex items-center gap-2 text-xs p-2 border border-cyan-500/50">
-      <span className="text-green-400 font-bold">+ LOT</span>
-      <select
-        className="bg-black border border-cyan-500 text-white px-1"
-        value={code}
-        onChange={(e) => setCode(e.target.value as ProductCode)}
-      >
-        {products.map((p) => <option key={p.code} value={p.code}>{p.label}</option>)}
-      </select>
+    <div className="flex flex-wrap items-center gap-2 text-xs p-2 border border-cyan-500/50">
+      <span className="text-green-400 font-bold">JAM MULAI PRODUKSI</span>
+      <TimeSelect
+        value={shiftConfig.productionStartMin}
+        onChange={setProductionStart}
+        shift={shiftConfig}
+      />
+      <span className="text-green-400 font-bold ml-2">+ LOT</span>
       <input
         type="number"
         min={1}
@@ -28,10 +27,11 @@ export default function AddLotsForm() {
       />
       <button
         className="bg-cyan-700 hover:bg-cyan-600 px-2 py-0.5 rounded"
-        onClick={() => addLots([{ productCode: code, count }])}
+        onClick={() => addLots([{ productCode: '2TR', count }])}
       >
         Tambah
       </button>
+      <span className="text-gray-500">Klik nomor lot pada grid untuk ubah model</span>
       <button
         className="ml-auto bg-gray-700 hover:bg-gray-600 px-2 py-0.5 rounded"
         onClick={resetBoard}

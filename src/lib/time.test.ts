@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { toMinOfDay, toHHmm, hourStart, rangesOverlap, nowMinOfDay } from './time';
+import {
+  toMinOfDay, toHHmm, hourStart, rangesOverlap, nowMinOfDay, nowMinForShift, toShiftMin,
+} from './time';
+import type { ShiftConfig } from '../domain/types';
 
 describe('time', () => {
   it('converts HH:mm to minute-of-day', () => {
@@ -27,5 +30,38 @@ describe('time', () => {
 
   it('reads minute-of-day from a Date', () => {
     expect(nowMinOfDay(new Date(2026, 6, 5, 10, 24))).toBe(624);
+  });
+
+  describe('nowMinForShift', () => {
+    const dayShift: ShiftConfig = {
+      startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks: [], productionStartMin: 420,
+    };
+    const nightShift: ShiftConfig = {
+      startMin: 1140, endMin: 1860, pic: 'X', shiftNo: 2, tTimeSec: 48, breaks: [], productionStartMin: 1140,
+    };
+
+    it('is a no-op for a same-day shift', () => {
+      expect(nowMinForShift(dayShift, new Date(2026, 6, 5, 10, 24))).toBe(624);
+    });
+
+    it('leaves the evening portion of an overnight shift untouched', () => {
+      expect(nowMinForShift(nightShift, new Date(2026, 6, 5, 20, 0))).toBe(1200);
+    });
+
+    it('adds 1440 for the past-midnight tail of an overnight shift', () => {
+      // 02:00 the next morning is really 26:00 on the shift's own timeline
+      expect(nowMinForShift(nightShift, new Date(2026, 6, 6, 2, 0))).toBe(1560);
+    });
+
+    it('toShiftMin: a clock time typed into a time picker lands correctly for shift 2', () => {
+      // 22:00 is still "today", within the evening half of the shift
+      expect(toShiftMin(nightShift, toMinOfDay('22:00'))).toBe(1320);
+      // 02:00 is the overnight tail -> 26:00 on the shift's own timeline
+      expect(toShiftMin(nightShift, toMinOfDay('02:00'))).toBe(1560);
+    });
+
+    it('toShiftMin is a no-op for a same-day shift', () => {
+      expect(toShiftMin(dayShift, toMinOfDay('08:45'))).toBe(525);
+    });
   });
 });

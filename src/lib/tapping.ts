@@ -53,3 +53,19 @@ export function deriveTappingGroups(planLots: PlanLot[]): TappingGroup[] {
     .sort((a, b) => a.startMin - b.startMin)
     .map((g, i) => ({ ...g, id: `tap-${i + 1}`, sequenceNo: i + 1 }));
 }
+
+export type TappingStatus = 'PLAN' | 'ACTION';
+
+/**
+ * Mirrors deriveActual's clock-driven rule: a group moves to ACTION once its
+ * last lot has "started" per the running clock, no manual confirmation.
+ */
+export function withTappingStatus(
+  groups: TappingGroup[],
+  nowMin: number,
+): (TappingGroup & { status: TappingStatus })[] {
+  return groups.map((g) => ({
+    ...g,
+    status: g.lots[g.lots.length - 1].startMin <= nowMin ? 'ACTION' : 'PLAN',
+  }));
+}

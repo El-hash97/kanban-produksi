@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_SHIFT, DEFAULT_PRODUCTS, buildShiftConfig, ensureDandori, LOT_PITCH_SEC, LOT_DURATION_MIN,
+  DEFAULT_SHIFT, DEFAULT_PRODUCTS, DEFAULT_FURNACES, buildShiftConfig, ensureDandori, LOT_PITCH_SEC, LOT_DURATION_MIN,
 } from './defaults';
 
 describe('defaults', () => {
@@ -32,6 +32,11 @@ describe('defaults', () => {
   it('has exactly the four products with unique codes', () => {
     const codes = DEFAULT_PRODUCTS.map((p) => p.code);
     expect(new Set(codes)).toEqual(new Set(['2TR', '1TR', 'KAI', 'CRANK']));
+  });
+
+  it('has exactly four furnaces with unique ids 1-4 and unique colors', () => {
+    expect(DEFAULT_FURNACES.map((f) => f.id).sort()).toEqual([1, 2, 3, 4]);
+    expect(new Set(DEFAULT_FURNACES.map((f) => f.color)).size).toBe(4);
   });
 
   describe('buildShiftConfig', () => {

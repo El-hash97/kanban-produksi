@@ -34,6 +34,14 @@ export interface Product {
   color: string;
 }
 
+export type FurnaceId = 1 | 2 | 3 | 4;
+
+export interface Furnace {
+  id: FurnaceId;
+  label: string;
+  color: string;
+}
+
 export interface PlanLot {
   id: string;
   productCode: ProductCode;

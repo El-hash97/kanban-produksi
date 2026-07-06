@@ -1,4 +1,6 @@
-import type { Break, BreakType, Product, ShiftConfig } from './types';
+import type {
+  Break, BreakType, Product, ShiftConfig, Furnace,
+} from './types';
 
 const h = (hh: number, mm = 0) => hh * 60 + mm;
 
@@ -89,4 +91,11 @@ export const DEFAULT_PRODUCTS: Product[] = [
   { code: '1TR', label: 'B/C 1TR', color: '#d946ef' },
   { code: 'KAI', label: 'TR-KAI', color: '#f59e0b' },
   { code: 'CRANK', label: 'CRANK', color: '#22c55e' },
+];
+
+export const DEFAULT_FURNACES: Furnace[] = [
+  { id: 1, label: 'Furnace 1', color: '#f97316' },
+  { id: 2, label: 'Furnace 2', color: '#06b6d4' },
+  { id: 3, label: 'Furnace 3', color: '#a855f7' },
+  { id: 4, label: 'Furnace 4', color: '#f43f5e' },
 ];

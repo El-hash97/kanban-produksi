@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { useNowMin } from '../hooks/useNowMin';
 import { deriveTappingGroups, withTappingStatus } from '../lib/tapping';
-import type { TappingGroup, TappingStatus } from '../lib/tapping';
+import type { TappingGroup } from '../lib/tapping';
 import { DEFAULT_FURNACES } from '../domain/defaults';
 import type { PlanLot } from '../domain/types';
 
@@ -57,7 +57,7 @@ function TappingShapeIcon({ group }: { group: TappingGroup }) {
   );
 }
 
-function TappingToken({ group }: { group: TappingGroup & { status: TappingStatus } }) {
+function TappingToken({ group }: { group: TappingGroup }) {
   return (
     <div className="flex flex-col items-center gap-0.5 w-16">
       <TappingShapeIcon group={group} />
@@ -80,28 +80,36 @@ export default function TappingPanel() {
     () => withTappingStatus(deriveTappingGroups(planLots), nowMin),
     [planLots, nowMin],
   );
-  const plan = groups.filter((g) => g.status === 'PLAN');
-  const action = groups.filter((g) => g.status === 'ACTION');
 
   return (
     <div className="text-white text-xs">
       <div className="bg-cyan-900/40 px-2 py-1 font-bold text-green-400">URUTAN TAPPING FURNACE</div>
-      <div className="p-2 space-y-3">
-        <div>
-          <div className="font-bold text-green-400 mb-1">PLAN</div>
-          <div className="flex flex-wrap gap-3">
-            {plan.length === 0 && <div className="text-gray-500">Belum ada tapping.</div>}
-            {plan.map((g) => <TappingToken key={g.id} group={g} />)}
-          </div>
+      {groups.length === 0 ? (
+        <div className="p-2 text-gray-500">Belum ada tapping.</div>
+      ) : (
+        <div className="overflow-x-auto p-2">
+          <table className="border-separate border-spacing-x-3 border-spacing-y-1">
+            <tbody>
+              <tr>
+                <td className="align-middle font-bold text-green-400 pr-3">PLAN</td>
+                {groups.map((g) => (
+                  <td key={g.id} className="align-top">
+                    <TappingToken group={g} />
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="align-middle font-bold text-green-400 pr-3 border-t border-cyan-500/30 pt-2">ACTION</td>
+                {groups.map((g) => (
+                  <td key={g.id} className="align-top border-t border-cyan-500/30 pt-2">
+                    {g.status === 'ACTION' && <TappingToken group={g} />}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div className="border-t border-cyan-500/30 pt-2">
-          <div className="font-bold text-green-400 mb-1">ACTION</div>
-          <div className="flex flex-wrap gap-3">
-            {action.length === 0 && <div className="text-gray-500">Belum ada tapping berjalan.</div>}
-            {action.map((g) => <TappingToken key={g.id} group={g} />)}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

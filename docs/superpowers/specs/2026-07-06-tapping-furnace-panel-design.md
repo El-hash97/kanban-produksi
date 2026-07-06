@@ -158,10 +158,13 @@ untuk mengeditnya).
 - Membaca `planLots` dan `shiftConfig` dari `boardStore`, `nowMin` dari `useNowMin` (hook yang sudah
   ada), lalu memanggil `withTappingStatus(deriveTappingGroups(planLots), nowMin)` — dibungkus
   `useMemo` sama seperti pola di `ModelSummary.tsx`.
-- Layout **vertikal**: bagian **PLAN** (token dengan `status === 'PLAN'`) di atas, bagian **ACTION**
-  (`status === 'ACTION'`) di bawah, dipisahkan garis — masing-masing diurutkan `sequenceNo` menaik,
-  token ditata `flex-wrap` mendatar di dalam bagiannya. Token yang berubah status "turun" dari
-  bagian PLAN ke bagian ACTION di render berikutnya.
+- Layout **satu tabel dua baris**, mengikuti konvensi PLN/ACT di `TimeGrid` board utama: baris
+  **PLAN** (paling atas) selalu menampilkan token untuk **setiap** `TappingGroup` tanpa syarat status;
+  baris **ACTION** di bawahnya menampilkan token yang sama **hanya** untuk grup dengan
+  `status === 'ACTION'` (sel kosong bila belum). Kolom antara baris PLAN dan ACTION sejajar per
+  `sequenceNo` (implementasi: `<table>` dengan satu `<tr>` per baris, satu `<td>` per tap). Karena
+  baris PLAN tidak pernah menyaring berdasarkan status, token tetap terlihat di PLAN walau tap-nya
+  sudah ACTION — sesuai permintaan user, bukan berpindah/menghilang dari PLAN.
 - Token tapping (`TappingShapeIcon`): sebuah bentuk (`w-10 h-10`) berwarna `furnace.color`, isi
   hanya **nomor furnace** (tanpa label teks "Furnace N"):
   - `square` (persegi, default) — div biasa.

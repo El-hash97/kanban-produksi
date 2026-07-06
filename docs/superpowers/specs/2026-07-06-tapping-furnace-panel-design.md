@@ -207,9 +207,10 @@ untuk mengeditnya).
   - `square` (persegi, default) — div biasa.
   - `triangle` (segitiga) — `clip-path: polygon(50% 0%, 0% 100%, 100% 100%)`.
   - `circle` (lingkaran) — `rounded-full`.
-- Di bawah tiap bentuk, keterangan kecil (`text-[8px]`): `#<sequenceNo>` + ringkasan lot (mis.
-  `2TR Lot 5-6, 1TR Lot 1` atau `CRANK Lot 3-5`); token `complete: false` mendapat label tambahan
-  "!lengkap".
+- Tiap token dibungkus sebagai blok kecil bergaris (`border`) menyerupai sel tabel: **nomor urutan
+  tapping** (`sequenceNo`) di sel paling atas (header kecil, `bg-cyan-900/30`), bentuk furnace di
+  tengah, lalu ringkasan lot di bawahnya (mis. `2TR Lot 5-6, 1TR Lot 1` atau `CRANK Lot 3-5`); token
+  `complete: false` mendapat label tambahan "!lengkap".
 - Bentuk pada baris **PLAN** adalah `<button>` (kursor pointer, `title="Klik untuk ubah furnace"`,
   sedikit `hover:brightness-110`) yang memanggil `setTappingFurnaceOverride` (§3.3) saat diklik.
   Bentuk pada baris **ACTION** tetap `<div>` biasa (tidak bisa diklik).

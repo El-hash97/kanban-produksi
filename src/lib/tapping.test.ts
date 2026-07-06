@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveTappingGroups } from './tapping';
+import { deriveTappingGroups, withTappingStatus } from './tapping';
 import type { PlanLot } from '../domain/types';
 
 let idCounter = 0;
@@ -77,5 +77,24 @@ describe('deriveTappingGroups', () => {
     expect(groups.map((g) => g.sequenceNo)).toEqual([1, 2]);
     expect(groups.map((g) => g.furnaceId)).toEqual([1, 3]);
     expect(groups.map((g) => g.startMin)).toEqual([400, 412]);
+  });
+});
+
+describe('withTappingStatus', () => {
+  it('marks a group ACTION once its last lot\'s startMin has passed', () => {
+    const lots = [
+      makeLot('2TR', 1, 400), makeLot('2TR', 2, 404), makeLot('2TR', 3, 408),
+    ];
+    const groups = deriveTappingGroups(lots);
+    expect(withTappingStatus(groups, 407)[0].status).toBe('PLAN');
+    expect(withTappingStatus(groups, 408)[0].status).toBe('ACTION');
+    expect(withTappingStatus(groups, 500)[0].status).toBe('ACTION');
+  });
+
+  it('evaluates an incomplete trailing group from its last available lot', () => {
+    const lots = [makeLot('2TR', 1, 400), makeLot('2TR', 2, 404)];
+    const groups = deriveTappingGroups(lots);
+    expect(withTappingStatus(groups, 403)[0].status).toBe('PLAN');
+    expect(withTappingStatus(groups, 404)[0].status).toBe('ACTION');
   });
 });

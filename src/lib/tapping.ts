@@ -87,7 +87,31 @@ export function deriveTappingGroups(planLots: PlanLot[]): TappingGroup[] {
     }
   }
 
-  return groups.map((g, i) => ({ ...g, id: `tap-${i + 1}`, sequenceNo: i + 1 }));
+  // `id` is derived from the group's first lot (not its position), so it
+  // stays stable across recomputation — needed for manual furnace overrides
+  // to keep pointing at "the same" tap even as other lots are added/shifted.
+  return groups.map((g, i) => ({ ...g, id: `tap-${g.lots[0].id}`, sequenceNo: i + 1 }));
+}
+
+/** Cycles a furnace id 1 -> 2 -> 3 -> 4 -> 1, used for manual reassignment. */
+export function nextFurnaceId(current: FurnaceId): FurnaceId {
+  return ((current % 4) + 1) as FurnaceId;
+}
+
+/**
+ * Applies manual furnace reassignments (keyed by TappingGroup.id) on top of
+ * the auto-derived groups. Only furnaceId changes — the underlying lots and
+ * shape (which reflects what product is actually being produced) stay as
+ * computed, since a manual override just says "this tap runs on a different
+ * furnace than suggested," not "this tap produces something else."
+ */
+export function applyFurnaceOverrides(
+  groups: TappingGroup[],
+  overrides: Record<string, FurnaceId>,
+): TappingGroup[] {
+  return groups.map((g) => (
+    overrides[g.id] !== undefined ? { ...g, furnaceId: overrides[g.id] } : g
+  ));
 }
 
 export type TappingStatus = 'PLAN' | 'ACTION';

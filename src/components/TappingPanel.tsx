@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { useNowMin } from '../hooks/useNowMin';
-import { deriveTappingGroups, withTappingStatus } from '../lib/tapping';
+import {
+  deriveTappingGroups, withTappingStatus, applyFurnaceOverrides, nextFurnaceId,
+} from '../lib/tapping';
 import type { TappingGroup } from '../lib/tapping';
 import { DEFAULT_FURNACES } from '../domain/defaults';
 import type { PlanLot } from '../domain/types';
@@ -29,40 +31,41 @@ function summarizeLots(lots: PlanLot[]): string {
 
 const SHAPE_SIZE = 'w-6 h-6';
 
-function TappingShapeIcon({ group }: { group: TappingGroup }) {
+function TappingShapeIcon({ group, onClick }: { group: TappingGroup; onClick?: () => void }) {
   const color = furnaceColor(group.furnaceId);
   const numberEl = <span className="font-bold text-black text-[10px] leading-none">{group.furnaceId}</span>;
 
+  let shapeClass = `${SHAPE_SIZE} flex items-center justify-center`;
+  const style: CSSProperties = { backgroundColor: color };
   if (group.shape === 'circle') {
-    return (
-      <div className={`${SHAPE_SIZE} rounded-full flex items-center justify-center`} style={{ backgroundColor: color }}>
-        {numberEl}
-      </div>
-    );
+    shapeClass += ' rounded-full';
+  } else if (group.shape === 'triangle') {
+    shapeClass = `${SHAPE_SIZE} flex items-end justify-center pb-1`;
+    style.clipPath = 'polygon(50% 0%, 0% 100%, 100% 100%)';
   }
-  if (group.shape === 'triangle') {
+
+  if (onClick) {
     return (
-      <div
-        className={`${SHAPE_SIZE} flex items-end justify-center pb-1`}
-        style={{ backgroundColor: color, clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' }}
+      <button
+        type="button"
+        className={`${shapeClass} cursor-pointer hover:brightness-110`}
+        style={style}
+        title="Klik untuk ubah furnace"
+        onClick={onClick}
       >
         {numberEl}
-      </div>
+      </button>
     );
   }
-  return (
-    <div className={`${SHAPE_SIZE} flex items-center justify-center`} style={{ backgroundColor: color }}>
-      {numberEl}
-    </div>
-  );
+  return <div className={shapeClass} style={style}>{numberEl}</div>;
 }
 
 // Shape + caption (tap number, lot summary). Each row (PLAN/ACTION) renders
 // this independently, so both need the caption to identify which tap it is.
-function TappingToken({ group }: { group: TappingGroup }) {
+function TappingToken({ group, onClickFurnace }: { group: TappingGroup; onClickFurnace?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-0.5 w-11">
-      <TappingShapeIcon group={group} />
+      <TappingShapeIcon group={group} onClick={onClickFurnace} />
       <div className="text-[8px] text-gray-400 text-center leading-tight">
         #{group.sequenceNo}
         <br />
@@ -76,12 +79,14 @@ function TappingToken({ group }: { group: TappingGroup }) {
 export default function TappingPanel() {
   const planLots = useBoardStore((s) => s.planLots);
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
+  const furnaceOverrides = useBoardStore((s) => s.furnaceOverrides);
+  const setTappingFurnaceOverride = useBoardStore((s) => s.setTappingFurnaceOverride);
   const nowMin = useNowMin(shiftConfig);
 
-  const groups = useMemo(
-    () => withTappingStatus(deriveTappingGroups(planLots), nowMin),
-    [planLots, nowMin],
-  );
+  const groups = useMemo(() => {
+    const derived = applyFurnaceOverrides(deriveTappingGroups(planLots), furnaceOverrides);
+    return withTappingStatus(derived, nowMin);
+  }, [planLots, furnaceOverrides, nowMin]);
   const action = groups.filter((g) => g.status === 'ACTION');
 
   return (
@@ -96,7 +101,13 @@ export default function TappingPanel() {
         <div className="p-2 grid grid-cols-[3.5rem_1fr] gap-x-2">
           <div className="flex items-center font-bold text-green-400 border-r border-cyan-500/30 pr-2">PLAN</div>
           <div className="flex flex-wrap gap-2 pb-2 border-b border-cyan-500/30">
-            {groups.map((g) => <TappingToken key={g.id} group={g} />)}
+            {groups.map((g) => (
+              <TappingToken
+                key={g.id}
+                group={g}
+                onClickFurnace={() => setTappingFurnaceOverride(g.id, nextFurnaceId(g.furnaceId))}
+              />
+            ))}
           </div>
 
           <div className="flex items-center font-bold text-green-400 border-r border-cyan-500/30 pr-2 pt-2">ACTION</div>

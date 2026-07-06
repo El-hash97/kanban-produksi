@@ -60,18 +60,22 @@ function TappingShapeIcon({ group, onClick }: { group: TappingGroup; onClick?: (
   return <div className={shapeClass} style={style}>{numberEl}</div>;
 }
 
-// Shape + caption (tap number, lot summary). Each row (PLAN/ACTION) renders
-// this independently, so both need the caption to identify which tap it is.
+// Small table-cell-like block: tapping sequence number on top, furnace
+// shape below it, lot summary caption underneath. Each row (PLAN/ACTION)
+// renders this independently, so both need their own caption.
 function TappingToken({ group, onClickFurnace }: { group: TappingGroup; onClickFurnace?: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 w-11">
-      <TappingShapeIcon group={group} onClick={onClickFurnace} />
-      <div className="text-[8px] text-gray-400 text-center leading-tight">
-        #{group.sequenceNo}
-        <br />
+    <div className="flex flex-col items-center w-11 border border-cyan-500/30">
+      <div className="w-full text-center text-[9px] font-bold text-cyan-300 bg-cyan-900/30 border-b border-cyan-500/30">
+        {group.sequenceNo}
+      </div>
+      <div className="flex justify-center py-1">
+        <TappingShapeIcon group={group} onClick={onClickFurnace} />
+      </div>
+      <div className="text-[8px] text-gray-400 text-center leading-tight px-0.5 pb-0.5">
         {summarizeLots(group.lots)}
       </div>
-      {!group.complete && <div className="text-[8px] text-yellow-400">!lengkap</div>}
+      {!group.complete && <div className="text-[8px] text-yellow-400 pb-0.5">!lengkap</div>}
     </div>
   );
 }

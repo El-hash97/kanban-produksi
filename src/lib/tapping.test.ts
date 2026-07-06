@@ -40,7 +40,7 @@ describe('deriveTappingGroups', () => {
     ]);
   });
 
-  it('falls back to TR (still furnace 3, 2x in the cycle) once KAI/CRANK runs out', () => {
+  it('falls back to TR (still furnace 3, 2x in the cycle) once KAI/CRANK runs out mid-pass', () => {
     const lots = [
       ...makeLots('CRANK', 3, 400), // only 1 furnace-3 group available
       ...makeLots('2TR', 18, 500), // enough TR to fill every other slot, including the 2nd F3 slot
@@ -53,6 +53,25 @@ describe('deriveTappingGroups', () => {
     expect(groups[2].lots.map((l) => l.productCode)).toEqual(['CRANK', 'CRANK', 'CRANK']);
     expect(groups[4].shape).toBe('square');
     expect(groups[4].lots.every((l) => l.productCode === '2TR')).toBe(true);
+  });
+
+  it('once KAI/CRANK is fully done before a new pass starts, furnace 3 taps 2x back-to-back (no F4 gap)', () => {
+    const lots = [
+      ...makeLots('CRANK', 3, 400), // 1 furnace-3 group, consumed entirely within the first pass
+      ...makeLots('2TR', 18, 500), // fills the rest of the first pass (F1,F1,F4,[F3 fallback],F2,F2)
+      ...makeLots('1TR', 21, 700), // enough for a full second pass under the merged cycle
+    ];
+    const groups = deriveTappingGroups(lots);
+    expect(groups).toHaveLength(14);
+    expect(groups.map((g) => g.furnaceId)).toEqual([
+      1, 1, 3, 4, 3, 2, 2, // 1st pass: split cycle, KAI/CRANK still had 1 group left
+      1, 1, 4, 2, 2, 3, 3, // 2nd pass: merged cycle, furnace 3 back-to-back at the end
+    ]);
+    // The two 2nd-pass furnace-3 taps (indices 12 and 13) are adjacent and both TR.
+    expect(groups[12].furnaceId).toBe(3);
+    expect(groups[13].furnaceId).toBe(3);
+    expect(groups[12].shape).toBe('square');
+    expect(groups[13].shape).toBe('square');
   });
 
   it('allows 2TR and 1TR to mix within one tapping group', () => {

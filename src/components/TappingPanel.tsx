@@ -57,6 +57,8 @@ function TappingShapeIcon({ group }: { group: TappingGroup }) {
   );
 }
 
+// Full token: shape + caption (tap number, lot summary). Used for the PLAN
+// row, which always shows every tap regardless of status.
 function TappingToken({ group }: { group: TappingGroup }) {
   return (
     <div className="flex flex-col items-center gap-0.5 w-16">
@@ -87,27 +89,24 @@ export default function TappingPanel() {
       {groups.length === 0 ? (
         <div className="p-2 text-gray-500">Belum ada tapping.</div>
       ) : (
-        <div className="overflow-x-auto p-2">
-          <table className="border-separate border-spacing-x-3 border-spacing-y-1">
-            <tbody>
-              <tr>
-                <td className="align-middle font-bold text-green-400 pr-3">PLAN</td>
-                {groups.map((g) => (
-                  <td key={g.id} className="align-top">
-                    <TappingToken group={g} />
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="align-middle font-bold text-green-400 pr-3 border-t border-cyan-500/30 pt-2">ACTION</td>
-                {groups.map((g) => (
-                  <td key={g.id} className="align-top border-t border-cyan-500/30 pt-2">
-                    {g.status === 'ACTION' && <TappingToken group={g} />}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
+        <div className="p-2">
+          <div className="flex gap-4 text-green-400 font-bold mb-2">
+            <span>▲ PLAN</span>
+            <span>▼ ACTION</span>
+          </div>
+          {/* flex-wrap (not overflow-x-auto): when a row of taps doesn't fit
+              the screen width, the rest wraps onto the next line below
+              instead of requiring a horizontal scroll. */}
+          <div className="flex flex-wrap gap-3">
+            {groups.map((g) => (
+              <div key={g.id} className="flex flex-col items-center gap-1 w-16">
+                <TappingToken group={g} />
+                <div className={`${SHAPE_SIZE} border-t border-cyan-500/30 pt-1 flex items-center justify-center`}>
+                  {g.status === 'ACTION' && <TappingShapeIcon group={g} />}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

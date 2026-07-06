@@ -35,6 +35,10 @@ diurutkan di board utama.
 - Panel kanban vertikal: **PLAN di atas**, **ACTION di bawah** — token tapping berpindah otomatis
   (turun dari PLAN ke ACTION) mengikuti jam berjalan, bukan klik manual.
 - Tervalidasi ulang otomatis saat Line Stop menggeser waktu lot (PRD §3.5, kalimat terakhir).
+- **Reassignment manual:** klik bentuk furnace pada token di baris PLAN untuk mengganti furnace tap
+  itu secara manual (siklus 1→2→3→4→1), menimpa hasil auto-derive untuk tap tersebut saja (mis. furnace
+  3 sedang maintenance, operator pindahkan tap itu ke furnace lain). Baris ACTION tidak bisa diklik
+  (sudah terjadi, tidak diubah retroaktif).
 
 **Di luar cakupan:**
 - Tidak mengubah urutan/algoritma `autoPlaceLots` di board utama — urutan produk pada PLN tetap
@@ -49,7 +53,8 @@ diurutkan di board utama.
 
 | Topik | Keputusan |
 |---|---|
-| Sumber data | Panel **diturunkan (derived)** dari `planLots` yang sudah ada — tidak ada state baru di `boardStore` untuk tapping. |
+| Sumber data | Panel **diturunkan (derived)** dari `planLots` — tidak ada state baru untuk *penempatan otomatis*. Satu-satunya state baru di `boardStore` adalah `furnaceOverrides` (reassignment manual per tap, lihat baris "Reassignment manual" di bawah). |
+| Reassignment manual | `boardStore.furnaceOverrides: Record<string, FurnaceId>`, keyed oleh `TappingGroup.id` (stabil, dari lot pertama tap itu — bukan posisi). Action `setTappingFurnaceOverride(tapId, furnaceId)` menyimpannya; `applyFurnaceOverrides` (lib/tapping.ts) menimpa `furnaceId` grup yang cocok setelah `deriveTappingGroups`, sebelum `withTappingStatus`. Direset saat `resetBoard`/ganti shift (lot hari itu hilang, override jadi tidak relevan). |
 | Pengelompokan 1 tapping | 3 lot kecil **berurutan** dalam antrian yang kompatibel (lihat §3). Sisa <3 di ujung tetap ditampilkan sebagai token "belum lengkap". |
 | Siklus furnace | **Dua template**, dipilih ulang di awal tiap pass 7-slot berdasarkan status antrian KAI/CRANK saat itu: selama masih ada sisa → **F1,F1,F3,F4,F3,F2,F2** (F3 split oleh F4); begitu sudah habis **sebelum pass baru dimulai** → **F1,F1,F4,F2,F2,F3,F3** (F3 dua kali berturut-turut, tanpa jeda furnace lain). |
 | Assignment slot F3 | **Mengutamakan** antrian KAI/CRANK; begitu antrian itu habis di tengah 1 pass, slot F3 **fallback** ke antrian TR (2TR/1TR) pada pass yang sama — furnace 3 tetap tapping 2× di posisi yang sama, tidak pernah idle. Pass berikutnya (kalau KAI/CRANK sudah habis total) langsung pakai template merged sehingga 2 tapping F3 itu berurutan tanpa jeda. |
@@ -109,12 +114,34 @@ export interface TappingGroup {
    `circle`; selain itu (TR, termasuk hasil fallback di slot F3) → `square`.
 4. `sequenceNo` = urutan kartu dihasilkan oleh loop di atas (1..N) — **bukan** hasil sort ulang
    berdasarkan `startMin`; urutan loop itu sendiri sudah merepresentasikan urutan tapping yang dituju.
+5. `id` = `` `tap-${lots[0].id}` `` — diturunkan dari lot pertama grup itu (bukan indeks posisi `i`),
+   supaya **stabil** lintas render meski lot lain berubah/bergeser. Ini penting untuk reassignment
+   manual (§3.3): override tetap menempel ke tap yang sama walau grup lain di sekitarnya berubah.
 
 ### 3.2 `withTappingStatus(groups: TappingGroup[], nowMin: number): (TappingGroup & { status: TappingStatus })[]`
 
 - `status = 'ACTION'` bila `lots[lots.length - 1].startMin <= nowMin` (lot terakhir dalam kartu sudah
   "mulai" menurut jam berjalan — termasuk kartu belum lengkap, dievaluasi dari lot terakhir yang ada).
 - Selain itu `status = 'PLAN'`.
+
+### 3.3 Reassignment manual — `nextFurnaceId` & `applyFurnaceOverrides`
+
+```ts
+export function nextFurnaceId(current: FurnaceId): FurnaceId; // 1->2->3->4->1
+export function applyFurnaceOverrides(
+  groups: TappingGroup[],
+  overrides: Record<string, FurnaceId>,
+): TappingGroup[];
+```
+
+- `applyFurnaceOverrides` dipanggil **di antara** `deriveTappingGroups` dan `withTappingStatus`:
+  untuk tiap grup, bila `overrides[group.id]` ada, ganti `furnaceId`-nya saja — `lots`, `shape`,
+  `startMin`, `complete` tidak berubah (override cuma bilang "tap ini jalan di furnace lain", bukan
+  "tap ini memproduksi barang lain").
+- Key di `overrides` yang tidak cocok grup mana pun (mis. tap sudah tidak ada lagi setelah lot
+  diubah) diabaikan begitu saja, tidak error.
+- UI (`TappingPanel.tsx`) memanggil `setTappingFurnaceOverride(group.id, nextFurnaceId(group.furnaceId))`
+  saat bentuk furnace pada baris PLAN diklik — jadi klik berulang menyiklus 1→2→3→4→1.
 
 **Edge case:**
 - `planLots` kosong → `[]`.
@@ -183,6 +210,9 @@ untuk mengeditnya).
 - Di bawah tiap bentuk, keterangan kecil (`text-[8px]`): `#<sequenceNo>` + ringkasan lot (mis.
   `2TR Lot 5-6, 1TR Lot 1` atau `CRANK Lot 3-5`); token `complete: false` mendapat label tambahan
   "!lengkap".
+- Bentuk pada baris **PLAN** adalah `<button>` (kursor pointer, `title="Klik untuk ubah furnace"`,
+  sedikit `hover:brightness-110`) yang memanggil `setTappingFurnaceOverride` (§3.3) saat diklik.
+  Bentuk pada baris **ACTION** tetap `<div>` biasa (tidak bisa diklik).
 - Gaya visual mengikuti konvensi panel lain: latar hitam, teks hijau/putih/cyan, border kontras
   (lihat `LineStopPanel.tsx`, `ModelSummary.tsx`).
 
@@ -198,8 +228,15 @@ untuk mengeditnya).
   - Kartu dengan sisa lot <3 di ujung antrian ditandai `complete: false`, tidak hilang.
   - `withTappingStatus` memindah status PLAN→ACTION tepat saat `nowMin` melewati `startMin` lot
     terakhir kartu.
+  - `id` grup stabil (`tap-${lots[0].id}`) dan unik per grup.
+  - `nextFurnaceId` menyiklus 1→2→3→4→1.
+  - `applyFurnaceOverrides` mengganti `furnaceId` hanya untuk grup yang key-nya cocok, mengabaikan
+    key yang tidak cocok grup mana pun.
+- **Unit (store):** `src/store/boardStore.test.ts` — `setTappingFurnaceOverride` menyimpan/menimpa
+  override; `resetBoard` dan ganti shift membersihkan `furnaceOverrides`.
 - **Manual/visual:** dev server (`npm run dev`) — cek bentuk token (persegi/segitiga/lingkaran), warna
-  furnace, dan token turun dari PLAN ke ACTION seiring jam berjalan. Tidak ada test komponen otomatis
+  furnace, token turun dari PLAN ke ACTION seiring jam berjalan, dan klik bentuk furnace di baris PLAN
+  menyiklus furnace-nya. Tidak ada test komponen otomatis
   (`.test.tsx`) — mengikuti konvensi proyek saat ini yang hanya menguji logic murni di `lib/`.
 
 ---

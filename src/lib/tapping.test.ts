@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { deriveTappingGroups, withTappingStatus } from './tapping';
+import {
+  deriveTappingGroups, withTappingStatus, applyFurnaceOverrides, nextFurnaceId,
+} from './tapping';
 import type { PlanLot } from '../domain/types';
 
 let idCounter = 0;
@@ -113,6 +115,45 @@ describe('deriveTappingGroups', () => {
     ];
     const groups = deriveTappingGroups(lots);
     expect(groups.map((g) => g.sequenceNo)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('derives a stable id from each group\'s first lot, unique per group', () => {
+    const lots = [
+      makeLot('2TR', 1, 400), makeLot('2TR', 2, 404), makeLot('2TR', 3, 408),
+      makeLot('2TR', 4, 412), makeLot('2TR', 5, 416), makeLot('2TR', 6, 420),
+    ];
+    const groups = deriveTappingGroups(lots);
+    expect(groups[0].id).toBe(`tap-${lots[0].id}`);
+    expect(groups[1].id).toBe(`tap-${lots[3].id}`);
+    expect(new Set(groups.map((g) => g.id)).size).toBe(groups.length);
+  });
+});
+
+describe('nextFurnaceId', () => {
+  it('cycles 1 -> 2 -> 3 -> 4 -> 1', () => {
+    expect(nextFurnaceId(1)).toBe(2);
+    expect(nextFurnaceId(2)).toBe(3);
+    expect(nextFurnaceId(3)).toBe(4);
+    expect(nextFurnaceId(4)).toBe(1);
+  });
+});
+
+describe('applyFurnaceOverrides', () => {
+  it('replaces furnaceId only for groups whose id has an override', () => {
+    const lots = makeLots('2TR', 15, 400); // 5 groups: F1,F1,F4,F2,F2
+    const groups = deriveTappingGroups(lots);
+    const overridden = applyFurnaceOverrides(groups, { [groups[2].id]: 3 });
+    expect(overridden.map((g) => g.furnaceId)).toEqual([1, 1, 3, 2, 2]);
+    // Everything else about the overridden group is untouched.
+    expect(overridden[2].lots).toBe(groups[2].lots);
+    expect(overridden[2].shape).toBe(groups[2].shape);
+  });
+
+  it('ignores override keys that do not match any current group', () => {
+    const lots = makeLots('2TR', 3, 400);
+    const groups = deriveTappingGroups(lots);
+    const overridden = applyFurnaceOverrides(groups, { 'tap-nonexistent': 4 });
+    expect(overridden).toEqual(groups);
   });
 });
 

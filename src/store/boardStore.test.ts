@@ -13,6 +13,7 @@ beforeEach(() => {
     products: DEFAULT_PRODUCTS,
     planLots: [],
     lineStops: [],
+    furnaceOverrides: {},
   });
 });
 
@@ -202,5 +203,28 @@ describe('boardStore', () => {
     const shift1 = useBoardStore.getState().shiftConfig;
     expect(shift1.breaks.some((b) => b.label === 'Shift1-Only')).toBe(true);
     expect(shift1.breaks.some((b) => b.label === 'Shift2-Only')).toBe(false);
+  });
+
+  it('setTappingFurnaceOverride records a manual furnace reassignment by tap id', () => {
+    useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
+    expect(useBoardStore.getState().furnaceOverrides).toEqual({ 'tap-lot-1': 3 });
+  });
+
+  it('setTappingFurnaceOverride overwrites a previous override for the same tap id', () => {
+    useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
+    useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 4);
+    expect(useBoardStore.getState().furnaceOverrides).toEqual({ 'tap-lot-1': 4 });
+  });
+
+  it('resetBoard clears furnace overrides along with lots/line stops', () => {
+    useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
+    useBoardStore.getState().resetBoard();
+    expect(useBoardStore.getState().furnaceOverrides).toEqual({});
+  });
+
+  it('switching shift clears furnace overrides (tied to that shift\'s lots)', () => {
+    useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
+    useBoardStore.getState().setShiftNo(2);
+    expect(useBoardStore.getState().furnaceOverrides).toEqual({});
   });
 });

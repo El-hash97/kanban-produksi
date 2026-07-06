@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-  LineStop, LotRequest, PlanLot, Product, ProductCode, ShiftConfig,
+  FurnaceId, LineStop, LotRequest, PlanLot, Product, ProductCode, ShiftConfig,
 } from '../domain/types';
 import {
   buildShiftConfig, DEFAULT_PRODUCTS, DEFAULT_SHIFT, ensureDandori,
@@ -20,6 +20,9 @@ interface BoardState {
   products: Product[];
   planLots: PlanLot[];
   lineStops: LineStop[];
+  // Manual furnace reassignments for the Tapping Furnace panel, keyed by
+  // TappingGroup.id (stable per-tap id derived from its first lot).
+  furnaceOverrides: Record<string, FurnaceId>;
   addLots: (requests: LotRequest[]) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
   setLotsProduct: (lotIds: string[], productCode: ProductCode) => void;
@@ -30,6 +33,7 @@ interface BoardState {
   removeBreak: (id: string) => void;
   setProductionStart: (startMin: number) => void;
   setShiftNo: (shiftNo: number) => void;
+  setTappingFurnaceOverride: (tapId: string, furnaceId: FurnaceId) => void;
   resetBoard: () => void;
 }
 
@@ -47,6 +51,7 @@ export const useBoardStore = create<BoardState>()(
       products: DEFAULT_PRODUCTS,
       planLots: [],
       lineStops: [],
+      furnaceOverrides: {},
 
       addLots: (requests) => {
         const { shiftConfig, planLots, lineStops } = get();
@@ -163,7 +168,18 @@ export const useBoardStore = create<BoardState>()(
           shiftPresets: { ...shiftPresets, [shiftNo]: nextShift },
           planLots: [],
           lineStops: [],
+          furnaceOverrides: {},
         });
+      },
+
+      // Reassigns which furnace a specific tap (by its stable id) runs on,
+      // overriding the auto-derived cycle assignment — e.g. furnace 3 is
+      // down for maintenance, so the operator manually routes that tap
+      // elsewhere. Cycling to the next value happens in the UI layer
+      // (lib/tapping.ts's nextFurnaceId); this action just records it.
+      setTappingFurnaceOverride: (tapId, furnaceId) => {
+        const { furnaceOverrides } = get();
+        set({ furnaceOverrides: { ...furnaceOverrides, [tapId]: furnaceId } });
       },
 
       // Reset only clears today's production data (lots + line stops). Shift
@@ -174,6 +190,7 @@ export const useBoardStore = create<BoardState>()(
           products: DEFAULT_PRODUCTS,
           planLots: [],
           lineStops: [],
+          furnaceOverrides: {},
         }),
     }),
     {

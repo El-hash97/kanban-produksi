@@ -1,9 +1,15 @@
 # Design Spec — Panel Urutan Tapping Furnace (PRD §3.5)
 
-**Date:** 2026-07-06
-**Status:** Approved (design), pending implementation plan
+**Date:** 2026-07-06 (revised same day after implementation feedback)
+**Status:** Implemented
 **Source PRD:** `prd.md` §3.5 ("Integrasi Urutan Tapping Furnace")
 **Depends on:** `2026-07-05-shikake-production-board-design.md` (papan Shikake MVP, sudah diimplementasikan)
+
+> **Revisi:** Setelah implementasi awal (kolom PLAN/ACTION side-by-side, kartu isi teks, siklus
+> dua-barisan independen), user memberi masukan lanjutan: layout kanban vertikal (PLAN di atas,
+> ACTION di bawah), token berbentuk (persegi/segitiga/lingkaran) berisi nomor furnace saja, dan
+> furnace 3 harus tetap ikut siklus tapping TR begitu stok KAI/CRANK habis alih-alih idle. Dokumen
+> ini sudah diperbarui untuk mencerminkan desain final yang diimplementasikan; lihat §2/§3/§5.
 
 ---
 
@@ -15,13 +21,19 @@ otomatis** dari `planLots` yang sudah ada di board utama — tanpa mengubah cara
 diurutkan di board utama.
 
 **Cakupan:**
-- 4 identitas furnace (F1–F4), masing-masing warna berbeda.
+- 4 identitas furnace (F1–F4), masing-masing warna berbeda; ditampilkan sebagai **nomor furnace saja**
+  di dalam sebuah token berbentuk.
 - Aturan: 1 tapping = 3 lot kecil.
 - Aturan: `KAI` dan `CRANK` selalu tapping di Furnace 3 (murni, tidak campur dengan produk lain).
-- Aturan: `2TR`/`1TR` (boleh campur satu sama lain dalam 1 tapping) bergantian furnace mengikuti
-  siklus default **F1, F1, F4, F2, F2** (berulang) — F1 & F2 masing-masing 2× berturut-turut,
-  F4 hanya 1×.
-- Panel kanban PLAN → ACTION, kartu tapping berpindah otomatis mengikuti jam berjalan (bukan klik manual).
+  Bentuk token: **segitiga** untuk CRANK, **lingkaran** untuk KAI.
+- Aturan: `2TR`/`1TR` (boleh campur satu sama lain dalam 1 tapping) mengikuti siklus tetap
+  **F1, F1, F3, F4, F3, F2, F2** (berulang) — F1 & F2 masing-masing 2× berturut-turut, F4 hanya 1×.
+  Bentuk token: **persegi**.
+- Kedua slot F3 dalam siklus **lebih memilih** KAI/CRANK; begitu stok KAI/CRANK habis, kedua slot itu
+  **tidak idle** — otomatis mengambil TR berikutnya (tetap 2× tapping di posisi yang sama, siklus
+  yang sama, bentuk token jadi persegi karena isinya TR).
+- Panel kanban vertikal: **PLAN di atas**, **ACTION di bawah** — token tapping berpindah otomatis
+  (turun dari PLAN ke ACTION) mengikuti jam berjalan, bukan klik manual.
 - Tervalidasi ulang otomatis saat Line Stop menggeser waktu lot (PRD §3.5, kalimat terakhir).
 
 **Di luar cakupan:**
@@ -29,7 +41,7 @@ diurutkan di board utama.
   sepenuhnya ditentukan oleh urutan input PIC di `AddLotsForm`, sama seperti sekarang.
 - Tidak ada UI untuk mengedit identitas/warna furnace (4 furnace tetap/statis, seperti katalog produk
   tetap ada 4).
-- Tidak ada konfigurasi siklus rotasi furnace lewat UI (siklus F1,F1,F4,F2,F2 adalah konstanta domain).
+- Tidak ada konfigurasi siklus rotasi furnace lewat UI (siklus F1,F1,F3,F4,F3,F2,F2 adalah konstanta domain).
 
 ---
 
@@ -38,13 +50,17 @@ diurutkan di board utama.
 | Topik | Keputusan |
 |---|---|
 | Sumber data | Panel **diturunkan (derived)** dari `planLots` yang sudah ada — tidak ada state baru di `boardStore` untuk tapping. |
-| Pengelompokan 1 tapping | 3 lot kecil **berurutan** dalam barisan yang kompatibel (lihat §3). Sisa <3 di ujung tetap ditampilkan sebagai kartu "belum lengkap". |
-| Assignment furnace KAI/CRANK | Selalu **Furnace 3**, tidak pernah campur dengan 2TR/1TR dalam 1 kartu. |
-| Assignment furnace 2TR/1TR | Bergantian mengikuti siklus tetap **F1, F1, F4, F2, F2** (lalu berulang), dihitung terpisah dari kelompok KAI/CRANK. Boleh campur 2TR+1TR dalam 1 kartu. |
-| Penomoran urut tapping | Global, berdasarkan `startMin` lot pertama tiap kartu (gabungan kedua barisan, diurutkan kronologis). |
+| Pengelompokan 1 tapping | 3 lot kecil **berurutan** dalam antrian yang kompatibel (lihat §3). Sisa <3 di ujung tetap ditampilkan sebagai token "belum lengkap". |
+| Siklus furnace | Template tetap 7-slot **F1, F1, F3, F4, F3, F2, F2** (berulang). Setiap slot menarik grup 3-lot berikutnya dari antrian yang sesuai. |
+| Assignment slot F3 | **Mengutamakan** antrian KAI/CRANK; begitu antrian itu habis, slot F3 **fallback** ke antrian TR (2TR/1TR) — furnace 3 tetap tapping 2× di posisi yang sama, tidak pernah idle. |
+| Assignment slot F1/F2/F4 | Selalu dari antrian TR (2TR/1TR); boleh campur 2TR+1TR dalam 1 kartu. |
+| Tidak pernah campur | KAI/CRANK tidak pernah berbagi 1 kartu dengan 2TR/1TR, baik saat F3 memakai antrian aslinya maupun saat fallback. |
+| Bentuk token | `square` (default/TR — termasuk fallback F3), `triangle` (CRANK), `circle` (KAI) — ditentukan dari `productCode` isi kartu, independen dari `furnaceId`. |
+| Penomoran urut tapping | Global, mengikuti **urutan konsumsi siklus** (bukan lagi sort berdasarkan `startMin` dua barisan terpisah — lihat §3). |
 | Trigger PLAN → ACTION | Otomatis: begitu **lot ke-3 (lot terakhir)** dalam kartu tapping mencapai `startMin`-nya relatif ke jam berjalan (`nowMin`) — mekanisme sama seperti `deriveActual` di board utama. |
 | Reaksi terhadap Line Stop | Otomatis — karena derivasi membaca `planLots` (yang sudah di-reflow oleh `applyLineStops`) dan `nowMin`, tidak perlu logika tambahan apa pun. |
 | Warna furnace | F1 oranye `#f97316`, F2 cyan `#06b6d4`, F3 ungu `#a855f7`, F4 merah muda `#f43f5e` — dipilih berbeda dari palet 4 produk yang sudah ada (biru/fuchsia/amber/hijau) agar tidak tertukar. |
+| Layout panel | Kanban **vertikal**: PLAN di atas, ACTION di bawah — token "turun" ke ACTION saat statusnya berubah. |
 
 ---
 
@@ -55,12 +71,14 @@ store, input/output deterministik, diuji dengan Vitest.
 
 ```ts
 export type FurnaceId = 1 | 2 | 3 | 4;
+export type TappingShape = 'square' | 'triangle' | 'circle';
 export type TappingStatus = 'PLAN' | 'ACTION';
 
 export interface TappingGroup {
   id: string;
-  sequenceNo: number;       // urut global, 1..N
+  sequenceNo: number;       // urut global, 1..N (urutan konsumsi siklus)
   furnaceId: FurnaceId;
+  shape: TappingShape;
   lots: PlanLot[];          // 1-3 lot; <3 hanya di ujung (belum lengkap)
   startMin: number;         // = lots[0].startMin
   complete: boolean;        // lots.length === 3
@@ -69,18 +87,22 @@ export interface TappingGroup {
 
 ### 3.1 `deriveTappingGroups(planLots: PlanLot[]): TappingGroup[]`
 
-1. Filter `planLots` (urutan array = urutan kronologis) menjadi dua barisan, **mempertahankan urutan
-   relatif asli**:
-   - Barisan A: `productCode === 'KAI' || productCode === 'CRANK'`
-   - Barisan B: `productCode === '2TR' || productCode === '1TR'`
-2. Chunk masing-masing barisan menjadi grup berurutan maksimal 3 lot (`chunk(arr, 3)`); grup terakhir
-   tiap barisan boleh berisi 1–2 lot (`complete = lots.length === 3`).
-3. Assign furnace:
-   - Tiap grup dari Barisan A → `furnaceId = 3`.
-   - Tiap grup dari Barisan B → furnace berikutnya dari siklus tetap `[1, 1, 4, 2, 2]`, diindeks oleh
-     urutan grup dalam Barisan B saja (independen dari Barisan A).
-4. Gabungkan semua grup dari kedua barisan, urutkan berdasarkan `startMin` (= `lots[0].startMin`),
-   lalu beri `sequenceNo` 1..N sesuai urutan tersebut.
+1. Filter `planLots` (urutan array = urutan kronologis) menjadi dua antrian, **mempertahankan urutan
+   relatif asli**, lalu chunk masing-masing jadi grup berurutan maksimal 3 lot (`chunk(arr, 3)`; grup
+   terakhir boleh berisi 1–2 lot, `complete = lots.length === 3`):
+   - `furnace3Queue`: `productCode === 'KAI' || productCode === 'CRANK'`
+   - `trQueue`: `productCode === '2TR' || productCode === '1TR'`
+2. Jalankan template siklus tetap **`[1, 1, 3, 4, 3, 2, 2]`** berulang, satu slot = satu grup:
+   - Slot `3`: ambil grup berikutnya dari `furnace3Queue` bila masih ada; kalau sudah habis, **fallback**
+     ambil dari `trQueue`.
+   - Slot `1`/`2`/`4`: selalu ambil grup berikutnya dari `trQueue`.
+   - Bila queue yang dibutuhkan slot itu kosong, slot tersebut dilewati (tidak menghasilkan kartu),
+     iterasi lanjut ke slot berikutnya.
+   - Loop berhenti begitu kedua queue habis.
+3. `shape` ditentukan dari isi kartu (bukan dari `furnaceId`): ada `CRANK` → `triangle`; ada `KAI` →
+   `circle`; selain itu (TR, termasuk hasil fallback di slot F3) → `square`.
+4. `sequenceNo` = urutan kartu dihasilkan oleh loop di atas (1..N) — **bukan** hasil sort ulang
+   berdasarkan `startMin`; urutan loop itu sendiri sudah merepresentasikan urutan tapping yang dituju.
 
 ### 3.2 `withTappingStatus(groups: TappingGroup[], nowMin: number): (TappingGroup & { status: TappingStatus })[]`
 
@@ -136,13 +158,18 @@ untuk mengeditnya).
 - Membaca `planLots` dan `shiftConfig` dari `boardStore`, `nowMin` dari `useNowMin` (hook yang sudah
   ada), lalu memanggil `withTappingStatus(deriveTappingGroups(planLots), nowMin)` — dibungkus
   `useMemo` sama seperti pola di `ModelSummary.tsx`.
-- Layout 2 kolom: **PLAN** (kartu dengan `status === 'PLAN'`) di kiri, **ACTION**
-  (`status === 'ACTION'`) di kanan — masing-masing diurutkan `sequenceNo` menaik.
-- Kartu tapping: border-left/background warna sesuai `furnace.color`, isi:
-  - `Tap #<sequenceNo>` + label furnace (mis. "Furnace 3").
-  - Ringkasan isi lot, mis. `2TR Lot 5-6, 1TR Lot 1` (dikelompokkan per productCode dalam kartu itu,
-    tampilkan rentang lotNo bila berurutan) atau `CRANK Lot 3-5`.
-  - Kartu `complete: false` diberi penanda visual (mis. label "belum lengkap" / opacity berbeda).
+- Layout **vertikal**: bagian **PLAN** (token dengan `status === 'PLAN'`) di atas, bagian **ACTION**
+  (`status === 'ACTION'`) di bawah, dipisahkan garis — masing-masing diurutkan `sequenceNo` menaik,
+  token ditata `flex-wrap` mendatar di dalam bagiannya. Token yang berubah status "turun" dari
+  bagian PLAN ke bagian ACTION di render berikutnya.
+- Token tapping (`TappingShapeIcon`): sebuah bentuk (`w-10 h-10`) berwarna `furnace.color`, isi
+  hanya **nomor furnace** (tanpa label teks "Furnace N"):
+  - `square` (persegi, default) — div biasa.
+  - `triangle` (segitiga) — `clip-path: polygon(50% 0%, 0% 100%, 100% 100%)`.
+  - `circle` (lingkaran) — `rounded-full`.
+- Di bawah tiap bentuk, keterangan kecil (`text-[9px]`): `Tap #<sequenceNo>` + ringkasan lot (mis.
+  `2TR Lot 5-6, 1TR Lot 1` atau `CRANK Lot 3-5`); token `complete: false` mendapat label tambahan
+  "belum lengkap".
 - Gaya visual mengikuti konvensi panel lain: latar hitam, teks hijau/putih/cyan, border kontras
   (lihat `LineStopPanel.tsx`, `ModelSummary.tsx`).
 
@@ -151,16 +178,16 @@ untuk mengeditnya).
 ## 6. Testing
 
 - **Unit (utama):** `src/lib/tapping.test.ts` (Vitest, pola sama seperti `scheduling.*.test.ts`):
-  - KAI/CRANK selalu furnace 3, tidak pernah campur produk lain dalam 1 kartu.
-  - 2TR/1TR rotasi F1,F1,F4,F2,F2 dan berulang dengan benar untuk banyak grup.
-  - 2TR dan 1TR boleh campur dalam 1 kartu tapping.
-  - Penomoran `sequenceNo` kronologis berdasar `startMin` gabungan kedua barisan.
-  - Kartu dengan sisa lot <3 di ujung barisan ditandai `complete: false`, tidak hilang.
+  - Siklus `F1,F1,F3,F4,F3,F2,F2` berjalan sesuai urutan, dengan `shape` yang benar per slot.
+  - Slot F3 fallback ke TR (tetap `furnaceId: 3`, `shape: 'square'`) begitu antrian KAI/CRANK habis.
+  - 2TR dan 1TR boleh campur dalam 1 kartu tapping; KAI/CRANK tidak pernah campur dengan TR.
+  - Penomoran `sequenceNo` mengikuti urutan konsumsi siklus, mulai dari 1.
+  - Kartu dengan sisa lot <3 di ujung antrian ditandai `complete: false`, tidak hilang.
   - `withTappingStatus` memindah status PLAN→ACTION tepat saat `nowMin` melewati `startMin` lot
     terakhir kartu.
-  - Retag produk (mis. lot pindah dari 2TR ke KAI) menghasilkan re-derivasi grup yang konsisten.
-- **Komponen:** smoke render `TappingPanel` dengan beberapa `planLots` contoh; verifikasi visual
-  (warna furnace, posisi PLAN/ACTION) via preview saat implementasi.
+- **Manual/visual:** dev server (`npm run dev`) — cek bentuk token (persegi/segitiga/lingkaran), warna
+  furnace, dan token turun dari PLAN ke ACTION seiring jam berjalan. Tidak ada test komponen otomatis
+  (`.test.tsx`) — mengikuti konvensi proyek saat ini yang hanya menguji logic murni di `lib/`.
 
 ---
 

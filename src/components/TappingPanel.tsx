@@ -27,11 +27,11 @@ function summarizeLots(lots: PlanLot[]): string {
     .join(', ');
 }
 
-const SHAPE_SIZE = 'w-10 h-10';
+const SHAPE_SIZE = 'w-6 h-6';
 
 function TappingShapeIcon({ group }: { group: TappingGroup }) {
   const color = furnaceColor(group.furnaceId);
-  const numberEl = <span className="font-bold text-black text-sm">{group.furnaceId}</span>;
+  const numberEl = <span className="font-bold text-black text-[10px] leading-none">{group.furnaceId}</span>;
 
   if (group.shape === 'circle') {
     return (
@@ -43,7 +43,7 @@ function TappingShapeIcon({ group }: { group: TappingGroup }) {
   if (group.shape === 'triangle') {
     return (
       <div
-        className={`${SHAPE_SIZE} flex items-end justify-center pb-1.5`}
+        className={`${SHAPE_SIZE} flex items-end justify-center pb-1`}
         style={{ backgroundColor: color, clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' }}
       >
         {numberEl}
@@ -57,18 +57,18 @@ function TappingShapeIcon({ group }: { group: TappingGroup }) {
   );
 }
 
-// Full token: shape + caption (tap number, lot summary). Used for the PLAN
-// row, which always shows every tap regardless of status.
+// Shape + caption (tap number, lot summary). Each row (PLAN/ACTION) renders
+// this independently, so both need the caption to identify which tap it is.
 function TappingToken({ group }: { group: TappingGroup }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 w-16">
+    <div className="flex flex-col items-center gap-0.5 w-11">
       <TappingShapeIcon group={group} />
-      <div className="text-[9px] text-gray-400 text-center leading-tight">
-        Tap #{group.sequenceNo}
+      <div className="text-[8px] text-gray-400 text-center leading-tight">
+        #{group.sequenceNo}
         <br />
         {summarizeLots(group.lots)}
       </div>
-      {!group.complete && <div className="text-[9px] text-yellow-400">belum lengkap</div>}
+      {!group.complete && <div className="text-[8px] text-yellow-400">!lengkap</div>}
     </div>
   );
 }
@@ -82,6 +82,7 @@ export default function TappingPanel() {
     () => withTappingStatus(deriveTappingGroups(planLots), nowMin),
     [planLots, nowMin],
   );
+  const action = groups.filter((g) => g.status === 'ACTION');
 
   return (
     <div className="text-white text-xs">
@@ -89,23 +90,20 @@ export default function TappingPanel() {
       {groups.length === 0 ? (
         <div className="p-2 text-gray-500">Belum ada tapping.</div>
       ) : (
-        <div className="p-2">
-          <div className="flex gap-4 text-green-400 font-bold mb-2">
-            <span>▲ PLAN</span>
-            <span>▼ ACTION</span>
+        // Two-column grid: a fixed-width label column (PLAN/ACTION) on the
+        // left with a guide-line border, and a flex-wrap token area on the
+        // right that wraps onto new lines instead of scrolling sideways.
+        <div className="p-2 grid grid-cols-[3.5rem_1fr] gap-x-2">
+          <div className="flex items-center font-bold text-green-400 border-r border-cyan-500/30 pr-2">PLAN</div>
+          <div className="flex flex-wrap gap-2 pb-2 border-b border-cyan-500/30">
+            {groups.map((g) => <TappingToken key={g.id} group={g} />)}
           </div>
-          {/* flex-wrap (not overflow-x-auto): when a row of taps doesn't fit
-              the screen width, the rest wraps onto the next line below
-              instead of requiring a horizontal scroll. */}
-          <div className="flex flex-wrap gap-3">
-            {groups.map((g) => (
-              <div key={g.id} className="flex flex-col items-center gap-1 w-16">
-                <TappingToken group={g} />
-                <div className={`${SHAPE_SIZE} border-t border-cyan-500/30 pt-1 flex items-center justify-center`}>
-                  {g.status === 'ACTION' && <TappingShapeIcon group={g} />}
-                </div>
-              </div>
-            ))}
+
+          <div className="flex items-center font-bold text-green-400 border-r border-cyan-500/30 pr-2 pt-2">ACTION</div>
+          <div className="flex flex-wrap gap-2 pt-2">
+            {action.length === 0
+              ? <div className="text-gray-500">Belum ada yang berjalan.</div>
+              : action.map((g) => <TappingToken key={g.id} group={g} />)}
           </div>
         </div>
       )}

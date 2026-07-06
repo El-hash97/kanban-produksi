@@ -60,7 +60,7 @@ diurutkan di board utama.
 | Trigger PLAN → ACTION | Otomatis: begitu **lot ke-3 (lot terakhir)** dalam kartu tapping mencapai `startMin`-nya relatif ke jam berjalan (`nowMin`) — mekanisme sama seperti `deriveActual` di board utama. |
 | Reaksi terhadap Line Stop | Otomatis — karena derivasi membaca `planLots` (yang sudah di-reflow oleh `applyLineStops`) dan `nowMin`, tidak perlu logika tambahan apa pun. |
 | Warna furnace | F1 oranye `#f97316`, F2 cyan `#06b6d4`, F3 ungu `#a855f7`, F4 merah muda `#f43f5e` — dipilih berbeda dari palet 4 produk yang sudah ada (biru/fuchsia/amber/hijau) agar tidak tertukar. |
-| Layout panel | Grid `flex-wrap` (bukan tabel/scroll horizontal): tiap tap = 1 kolom kecil berisi token PLAN (selalu tampil) di atas dan mirror ACTION (tampil hanya bila `status === 'ACTION'`) di bawahnya. Saat kolom tidak muat di lebar layar, sisanya **wrap ke baris baru di bawah** — tidak ada scroll ke kanan. |
+| Layout panel | Grid 2 kolom: label baris (**PLAN**/**ACTION**) di kiri dengan garis bantu (`border-r`/`border-b`), token di kanan. Tiap baris adalah `flex flex-wrap` sendiri (wrap independen, bukan scroll horizontal); PLAN selalu menampilkan semua tap, ACTION hanya yang `status === 'ACTION'`. Token diperkecil (`w-6 h-6`). |
 
 ---
 
@@ -164,24 +164,25 @@ untuk mengeditnya).
 - Membaca `planLots` dan `shiftConfig` dari `boardStore`, `nowMin` dari `useNowMin` (hook yang sudah
   ada), lalu memanggil `withTappingStatus(deriveTappingGroups(planLots), nowMin)` — dibungkus
   `useMemo` sama seperti pola di `ModelSummary.tsx`.
-- Layout **grid `flex-wrap`** (bukan `<table>` + `overflow-x-auto`, agar tidak perlu scroll ke kanan —
-  lihat catatan di bawah), mengikuti semangat konvensi PLN/ACT di `TimeGrid` board utama tapi per-kolom:
-  tiap tap = satu kolom kecil (`w-16`) berisi token **PLAN** (selalu tampil, dengan caption `Tap #N` +
-  ringkasan lot) di atas, dan mirror **ACTION** (hanya bentuknya saja, tanpa caption, tampil hanya bila
-  `status === 'ACTION'`) di bawahnya, dipisah garis. Karena token PLAN tidak pernah disyaratkan status,
-  ia tetap terlihat walau tap-nya sudah ACTION — sesuai permintaan user, bukan berpindah/menghilang.
-  Label "▲ PLAN"/"▼ ACTION" ditampilkan sekali di atas grid (bukan per baris) karena barisnya bisa wrap.
-- **Tidak ada scroll horizontal:** kontainer kolom-kolom itu memakai `flex flex-wrap`, bukan
-  `overflow-x-auto`, jadi begitu kolom-kolom tidak muat di lebar layar, sisanya otomatis pindah ke
-  baris baru di bawah alih-alih menampilkan scrollbar ke kanan.
-- Token tapping (`TappingShapeIcon`): sebuah bentuk (`w-10 h-10`) berwarna `furnace.color`, isi
+- Layout **grid 2 kolom** (`grid-cols-[3.5rem_1fr]`): kolom kiri berisi label baris (**PLAN**/**ACTION**),
+  kolom kanan berisi token, dengan **garis bantu** — `border-r` memisahkan label dari token, `border-b`
+  memisahkan baris PLAN dari baris ACTION. 4 elemen (label-PLAN, token-PLAN, label-ACTION,
+  token-ACTION) ditaruh berurutan di DOM, grid otomatis membentuk 2 baris × 2 kolom.
+- Baris **PLAN** (token area) selalu menampilkan token untuk **setiap** `TappingGroup`. Baris
+  **ACTION** menampilkan token **hanya** untuk grup dengan `status === 'ACTION'` — jadi begitu sebuah
+  tap sudah ACTION, tokennya tetap ada di PLAN (tidak berpindah/menghilang) sekaligus muncul di ACTION.
+- **Tidak ada scroll horizontal:** kedua kolom token memakai `flex flex-wrap`, bukan `overflow-x-auto`
+  — begitu token tidak muat di lebar layar, sisanya otomatis pindah ke baris baru di bawah. Baris PLAN
+  dan ACTION wrap **independen** (masing-masing render token dengan caption lengkap sendiri, karena
+  keduanya tidak lagi dipasangkan per kolom).
+- Token tapping (`TappingShapeIcon`): sebuah bentuk kecil (`w-6 h-6`) berwarna `furnace.color`, isi
   hanya **nomor furnace** (tanpa label teks "Furnace N"):
   - `square` (persegi, default) — div biasa.
   - `triangle` (segitiga) — `clip-path: polygon(50% 0%, 0% 100%, 100% 100%)`.
   - `circle` (lingkaran) — `rounded-full`.
-- Di bawah tiap bentuk, keterangan kecil (`text-[9px]`): `Tap #<sequenceNo>` + ringkasan lot (mis.
+- Di bawah tiap bentuk, keterangan kecil (`text-[8px]`): `#<sequenceNo>` + ringkasan lot (mis.
   `2TR Lot 5-6, 1TR Lot 1` atau `CRANK Lot 3-5`); token `complete: false` mendapat label tambahan
-  "belum lengkap".
+  "!lengkap".
 - Gaya visual mengikuti konvensi panel lain: latar hitam, teks hijau/putih/cyan, border kontras
   (lihat `LineStopPanel.tsx`, `ModelSummary.tsx`).
 

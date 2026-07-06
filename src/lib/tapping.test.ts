@@ -10,33 +10,49 @@ function makeLot(productCode: PlanLot['productCode'], lotNo: number, startMin: n
   };
 }
 
+// Builds `count` lots of `productCode` on a 4-minute pitch starting at `startMin`.
+function makeLots(productCode: PlanLot['productCode'], count: number, startMin: number): PlanLot[] {
+  const lots: PlanLot[] = [];
+  let t = startMin;
+  for (let i = 0; i < count; i += 1) {
+    lots.push(makeLot(productCode, i + 1, t));
+    t += 4;
+  }
+  return lots;
+}
+
 describe('deriveTappingGroups', () => {
   it('returns nothing for an empty plan', () => {
     expect(deriveTappingGroups([])).toEqual([]);
   });
 
-  it('groups KAI/CRANK lots into furnace 3, 3 lots per tap', () => {
+  it('walks the fixed F1,F1,F3,F4,F3,F2,F2 cycle, F3 slots pulling KAI/CRANK', () => {
     const lots = [
-      makeLot('CRANK', 1, 400), makeLot('CRANK', 2, 404), makeLot('CRANK', 3, 408),
-      makeLot('KAI', 1, 412), makeLot('KAI', 2, 416), makeLot('KAI', 3, 420),
+      ...makeLots('2TR', 15, 400), // fills F1,F1,F4,F2,F2 (5 slots x 3 lots)
+      ...makeLots('CRANK', 3, 500),
+      ...makeLots('KAI', 3, 504),
     ];
     const groups = deriveTappingGroups(lots);
-    expect(groups).toHaveLength(2);
-    expect(groups.every((g) => g.furnaceId === 3)).toBe(true);
-    expect(groups[0].lots.map((l) => l.productCode)).toEqual(['CRANK', 'CRANK', 'CRANK']);
-    expect(groups[1].lots.map((l) => l.productCode)).toEqual(['KAI', 'KAI', 'KAI']);
+    expect(groups).toHaveLength(7);
+    expect(groups.map((g) => g.furnaceId)).toEqual([1, 1, 3, 4, 3, 2, 2]);
+    expect(groups.map((g) => g.shape)).toEqual([
+      'square', 'square', 'triangle', 'square', 'circle', 'square', 'square',
+    ]);
   });
 
-  it('rotates 2TR/1TR groups through F1,F1,F4,F2,F2 and repeats', () => {
-    const lots: PlanLot[] = [];
-    let t = 400;
-    for (let i = 0; i < 15; i += 1) {
-      lots.push(makeLot('2TR', i + 1, t));
-      t += 4;
-    }
+  it('falls back to TR (still furnace 3, 2x in the cycle) once KAI/CRANK runs out', () => {
+    const lots = [
+      ...makeLots('CRANK', 3, 400), // only 1 furnace-3 group available
+      ...makeLots('2TR', 18, 500), // enough TR to fill every other slot, including the 2nd F3 slot
+    ];
     const groups = deriveTappingGroups(lots);
-    expect(groups).toHaveLength(5);
-    expect(groups.map((g) => g.furnaceId)).toEqual([1, 1, 4, 2, 2]);
+    expect(groups).toHaveLength(7);
+    expect(groups.map((g) => g.furnaceId)).toEqual([1, 1, 3, 4, 3, 2, 2]);
+    // 1st F3 slot (index 2) got the real CRANK group; 2nd F3 slot (index 4) fell back to TR.
+    expect(groups[2].shape).toBe('triangle');
+    expect(groups[2].lots.map((l) => l.productCode)).toEqual(['CRANK', 'CRANK', 'CRANK']);
+    expect(groups[4].shape).toBe('square');
+    expect(groups[4].lots.every((l) => l.productCode === '2TR')).toBe(true);
   });
 
   it('allows 2TR and 1TR to mix within one tapping group', () => {
@@ -46,17 +62,19 @@ describe('deriveTappingGroups', () => {
     const groups = deriveTappingGroups(lots);
     expect(groups).toHaveLength(1);
     expect(groups[0].furnaceId).toBe(1);
+    expect(groups[0].shape).toBe('square');
     expect(groups[0].lots.map((l) => l.productCode)).toEqual(['2TR', '1TR', '2TR']);
   });
 
   it('never mixes KAI/CRANK lots with 2TR/1TR lots in the same group', () => {
     const lots = [
-      makeLot('2TR', 1, 400), makeLot('2TR', 2, 404), makeLot('CRANK', 1, 408),
+      ...makeLots('CRANK', 3, 400),
+      ...makeLots('2TR', 18, 500),
     ];
     const groups = deriveTappingGroups(lots);
     expect(groups.some((g) => {
       const codes = new Set(g.lots.map((l) => l.productCode));
-      return codes.has('CRANK') && (codes.has('2TR') || codes.has('1TR'));
+      return (codes.has('CRANK') || codes.has('KAI')) && (codes.has('2TR') || codes.has('1TR'));
     })).toBe(false);
   });
 
@@ -68,15 +86,14 @@ describe('deriveTappingGroups', () => {
     expect(groups[0].lots).toHaveLength(2);
   });
 
-  it('numbers sequenceNo chronologically across both furnace-3 and rotation groups combined', () => {
+  it('numbers sequenceNo in cycle-consumption order starting at 1', () => {
     const lots = [
-      makeLot('2TR', 1, 400), makeLot('2TR', 2, 404), makeLot('2TR', 3, 408), // F1 tap, starts 400
-      makeLot('CRANK', 1, 412), makeLot('CRANK', 2, 416), makeLot('CRANK', 3, 420), // F3 tap, starts 412
+      ...makeLots('2TR', 15, 400),
+      ...makeLots('CRANK', 3, 500),
+      ...makeLots('KAI', 3, 504),
     ];
     const groups = deriveTappingGroups(lots);
-    expect(groups.map((g) => g.sequenceNo)).toEqual([1, 2]);
-    expect(groups.map((g) => g.furnaceId)).toEqual([1, 3]);
-    expect(groups.map((g) => g.startMin)).toEqual([400, 412]);
+    expect(groups.map((g) => g.sequenceNo)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 });
 

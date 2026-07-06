@@ -1,17 +1,23 @@
 import type { PlanLot, ProductCode, FurnaceId } from '../domain/types';
 
+export type TappingShape = 'square' | 'triangle' | 'circle';
+
 export interface TappingGroup {
   id: string;
   sequenceNo: number;
   furnaceId: FurnaceId;
+  shape: TappingShape;
   lots: PlanLot[];
   startMin: number;
   complete: boolean;
 }
 
 const FURNACE3_CODES: ProductCode[] = ['KAI', 'CRANK'];
-const ROTATION_CODES: ProductCode[] = ['2TR', '1TR'];
-const ROTATION_CYCLE: FurnaceId[] = [1, 1, 4, 2, 2];
+const TR_CODES: ProductCode[] = ['2TR', '1TR'];
+
+// Fixed furnace tapping cycle: F1 and F2 tap 2x in a row, F4 taps 1x, and F3
+// taps 2x (split around F4) — repeats indefinitely.
+const CYCLE_TEMPLATE: FurnaceId[] = [1, 1, 3, 4, 3, 2, 2];
 
 function chunk<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -21,37 +27,59 @@ function chunk<T>(items: T[], size: number): T[][] {
   return result;
 }
 
-type UnnumberedGroup = Omit<TappingGroup, 'id' | 'sequenceNo'>;
-
-function groupsFor(lots: PlanLot[], furnaceIdFor: (groupIndex: number) => FurnaceId): UnnumberedGroup[] {
-  return chunk(lots, 3).map((group, i) => ({
-    furnaceId: furnaceIdFor(i),
-    lots: group,
-    startMin: group[0].startMin,
-    complete: group.length === 3,
-  }));
+function shapeFor(lots: PlanLot[]): TappingShape {
+  if (lots.some((l) => l.productCode === 'CRANK')) return 'triangle';
+  if (lots.some((l) => l.productCode === 'KAI')) return 'circle';
+  return 'square';
 }
 
 /**
- * Derives tapping groups from the plan's existing lot order (chronological):
- * KAI/CRANK lots always chunk to furnace 3; 2TR/1TR lots chunk and rotate
- * through the fixed F1,F1,F4,F2,F2 cycle. The two tracks are independent —
- * furnace-3 assignment never depends on rotation position, and vice versa —
- * then merged back into one chronological, globally-numbered sequence.
+ * Walks the fixed 7-slot furnace cycle (F1,F1,F3,F4,F3,F2,F2, repeating),
+ * pulling the next group of 3 lots for each slot from the queue that slot's
+ * furnace normally serves. Furnace 3's two slots prefer KAI/CRANK (its
+ * dedicated product) — once that queue runs dry, those same slots fall back
+ * to TR, so furnace 3 keeps tapping 2x in the same cycle position instead of
+ * sitting idle once KAI/CRANK production is done for the day.
  */
 export function deriveTappingGroups(planLots: PlanLot[]): TappingGroup[] {
-  const furnace3Lots = planLots.filter((l) => FURNACE3_CODES.includes(l.productCode));
-  const rotationLots = planLots.filter((l) => ROTATION_CODES.includes(l.productCode));
+  const furnace3Queue = chunk(planLots.filter((l) => FURNACE3_CODES.includes(l.productCode)), 3);
+  const trQueue = chunk(planLots.filter((l) => TR_CODES.includes(l.productCode)), 3);
 
-  const furnace3Groups = groupsFor(furnace3Lots, () => 3);
-  const rotationGroups = groupsFor(
-    rotationLots,
-    (i) => ROTATION_CYCLE[i % ROTATION_CYCLE.length],
-  );
+  let f3i = 0;
+  let ti = 0;
+  const groups: Omit<TappingGroup, 'id' | 'sequenceNo'>[] = [];
+  let cycleIdx = 0;
 
-  return [...furnace3Groups, ...rotationGroups]
-    .sort((a, b) => a.startMin - b.startMin)
-    .map((g, i) => ({ ...g, id: `tap-${i + 1}`, sequenceNo: i + 1 }));
+  while (f3i < furnace3Queue.length || ti < trQueue.length) {
+    const slot = CYCLE_TEMPLATE[cycleIdx % CYCLE_TEMPLATE.length];
+    cycleIdx += 1;
+
+    let lots: PlanLot[] | undefined;
+    if (slot === 3) {
+      if (f3i < furnace3Queue.length) {
+        lots = furnace3Queue[f3i];
+        f3i += 1;
+      } else if (ti < trQueue.length) {
+        lots = trQueue[ti];
+        ti += 1;
+      }
+    } else if (ti < trQueue.length) {
+      lots = trQueue[ti];
+      ti += 1;
+    }
+
+    if (lots) {
+      groups.push({
+        furnaceId: slot,
+        shape: shapeFor(lots),
+        lots,
+        startMin: lots[0].startMin,
+        complete: lots.length === 3,
+      });
+    }
+  }
+
+  return groups.map((g, i) => ({ ...g, id: `tap-${i + 1}`, sequenceNo: i + 1 }));
 }
 
 export type TappingStatus = 'PLAN' | 'ACTION';

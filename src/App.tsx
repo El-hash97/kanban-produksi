@@ -5,11 +5,13 @@ import AddLotsForm from './components/AddLotsForm';
 import LineStopPanel from './components/LineStopPanel';
 import ModelSummary from './components/ModelSummary';
 import BreakPanel from './components/BreakPanel';
+import TappingPanel from './components/TappingPanel';
 
 const TABS = [
   { key: 'linestop', label: 'INFORMASI LINE STOP' },
   { key: 'break', label: 'DANDORI/WAKOM/ISTIRAHAT' },
   { key: 'model', label: 'MODEL' },
+  { key: 'tapping', label: 'URUTAN TAPPING FURNACE' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -44,6 +46,7 @@ export default function App() {
             <ModelSummary />
           </>
         )}
+        {tab === 'tapping' && <TappingPanel />}
       </div>
     </div>
   );

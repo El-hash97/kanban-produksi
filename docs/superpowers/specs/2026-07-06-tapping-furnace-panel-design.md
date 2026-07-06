@@ -51,8 +51,8 @@ diurutkan di board utama.
 |---|---|
 | Sumber data | Panel **diturunkan (derived)** dari `planLots` yang sudah ada — tidak ada state baru di `boardStore` untuk tapping. |
 | Pengelompokan 1 tapping | 3 lot kecil **berurutan** dalam antrian yang kompatibel (lihat §3). Sisa <3 di ujung tetap ditampilkan sebagai token "belum lengkap". |
-| Siklus furnace | Template tetap 7-slot **F1, F1, F3, F4, F3, F2, F2** (berulang). Setiap slot menarik grup 3-lot berikutnya dari antrian yang sesuai. |
-| Assignment slot F3 | **Mengutamakan** antrian KAI/CRANK; begitu antrian itu habis, slot F3 **fallback** ke antrian TR (2TR/1TR) — furnace 3 tetap tapping 2× di posisi yang sama, tidak pernah idle. |
+| Siklus furnace | **Dua template**, dipilih ulang di awal tiap pass 7-slot berdasarkan status antrian KAI/CRANK saat itu: selama masih ada sisa → **F1,F1,F3,F4,F3,F2,F2** (F3 split oleh F4); begitu sudah habis **sebelum pass baru dimulai** → **F1,F1,F4,F2,F2,F3,F3** (F3 dua kali berturut-turut, tanpa jeda furnace lain). |
+| Assignment slot F3 | **Mengutamakan** antrian KAI/CRANK; begitu antrian itu habis di tengah 1 pass, slot F3 **fallback** ke antrian TR (2TR/1TR) pada pass yang sama — furnace 3 tetap tapping 2× di posisi yang sama, tidak pernah idle. Pass berikutnya (kalau KAI/CRANK sudah habis total) langsung pakai template merged sehingga 2 tapping F3 itu berurutan tanpa jeda. |
 | Assignment slot F1/F2/F4 | Selalu dari antrian TR (2TR/1TR); boleh campur 2TR+1TR dalam 1 kartu. |
 | Tidak pernah campur | KAI/CRANK tidak pernah berbagi 1 kartu dengan 2TR/1TR, baik saat F3 memakai antrian aslinya maupun saat fallback. |
 | Bentuk token | `square` (default/TR — termasuk fallback F3), `triangle` (CRANK), `circle` (KAI) — ditentukan dari `productCode` isi kartu, independen dari `furnaceId`. |
@@ -60,7 +60,7 @@ diurutkan di board utama.
 | Trigger PLAN → ACTION | Otomatis: begitu **lot ke-3 (lot terakhir)** dalam kartu tapping mencapai `startMin`-nya relatif ke jam berjalan (`nowMin`) — mekanisme sama seperti `deriveActual` di board utama. |
 | Reaksi terhadap Line Stop | Otomatis — karena derivasi membaca `planLots` (yang sudah di-reflow oleh `applyLineStops`) dan `nowMin`, tidak perlu logika tambahan apa pun. |
 | Warna furnace | F1 oranye `#f97316`, F2 cyan `#06b6d4`, F3 ungu `#a855f7`, F4 merah muda `#f43f5e` — dipilih berbeda dari palet 4 produk yang sudah ada (biru/fuchsia/amber/hijau) agar tidak tertukar. |
-| Layout panel | Kanban **vertikal**: PLAN di atas, ACTION di bawah — token "turun" ke ACTION saat statusnya berubah. |
+| Layout panel | Grid `flex-wrap` (bukan tabel/scroll horizontal): tiap tap = 1 kolom kecil berisi token PLAN (selalu tampil) di atas dan mirror ACTION (tampil hanya bila `status === 'ACTION'`) di bawahnya. Saat kolom tidak muat di lebar layar, sisanya **wrap ke baris baru di bawah** — tidak ada scroll ke kanan. |
 
 ---
 
@@ -92,13 +92,19 @@ export interface TappingGroup {
    terakhir boleh berisi 1–2 lot, `complete = lots.length === 3`):
    - `furnace3Queue`: `productCode === 'KAI' || productCode === 'CRANK'`
    - `trQueue`: `productCode === '2TR' || productCode === '1TR'`
-2. Jalankan template siklus tetap **`[1, 1, 3, 4, 3, 2, 2]`** berulang, satu slot = satu grup:
-   - Slot `3`: ambil grup berikutnya dari `furnace3Queue` bila masih ada; kalau sudah habis, **fallback**
-     ambil dari `trQueue`.
+2. Proses satu **pass** (7 slot) pada satu waktu. Di awal tiap pass, pilih template berdasarkan status
+   `furnace3Queue` **saat itu**:
+   - Masih ada sisa → **`[1, 1, 3, 4, 3, 2, 2]`** (F3 split oleh F4 — mungkin masih KAI/CRANK asli).
+   - Sudah habis → **`[1, 1, 4, 2, 2, 3, 3]`** (F3 dua kali berturut-turut, tanpa jeda F4).
+   Untuk tiap slot dalam pass itu:
+   - Slot `3`: ambil grup berikutnya dari `furnace3Queue` bila masih ada; kalau sudah habis di
+     tengah pass ini, **fallback** ambil dari `trQueue` (skenario ini hanya terjadi di pass yang
+     dimulai dengan template split, karena template merged hanya dipakai begitu `furnace3Queue`
+     kosong sejak awal pass).
    - Slot `1`/`2`/`4`: selalu ambil grup berikutnya dari `trQueue`.
-   - Bila queue yang dibutuhkan slot itu kosong, slot tersebut dilewati (tidak menghasilkan kartu),
-     iterasi lanjut ke slot berikutnya.
-   - Loop berhenti begitu kedua queue habis.
+   - Bila queue yang dibutuhkan slot itu kosong, slot tersebut dilewati (tidak menghasilkan kartu).
+   - Pass berikutnya dimulai bila salah satu queue masih punya sisa; loop luar berhenti begitu kedua
+     queue habis.
 3. `shape` ditentukan dari isi kartu (bukan dari `furnaceId`): ada `CRANK` → `triangle`; ada `KAI` →
    `circle`; selain itu (TR, termasuk hasil fallback di slot F3) → `square`.
 4. `sequenceNo` = urutan kartu dihasilkan oleh loop di atas (1..N) — **bukan** hasil sort ulang
@@ -158,13 +164,16 @@ untuk mengeditnya).
 - Membaca `planLots` dan `shiftConfig` dari `boardStore`, `nowMin` dari `useNowMin` (hook yang sudah
   ada), lalu memanggil `withTappingStatus(deriveTappingGroups(planLots), nowMin)` — dibungkus
   `useMemo` sama seperti pola di `ModelSummary.tsx`.
-- Layout **satu tabel dua baris**, mengikuti konvensi PLN/ACT di `TimeGrid` board utama: baris
-  **PLAN** (paling atas) selalu menampilkan token untuk **setiap** `TappingGroup` tanpa syarat status;
-  baris **ACTION** di bawahnya menampilkan token yang sama **hanya** untuk grup dengan
-  `status === 'ACTION'` (sel kosong bila belum). Kolom antara baris PLAN dan ACTION sejajar per
-  `sequenceNo` (implementasi: `<table>` dengan satu `<tr>` per baris, satu `<td>` per tap). Karena
-  baris PLAN tidak pernah menyaring berdasarkan status, token tetap terlihat di PLAN walau tap-nya
-  sudah ACTION — sesuai permintaan user, bukan berpindah/menghilang dari PLAN.
+- Layout **grid `flex-wrap`** (bukan `<table>` + `overflow-x-auto`, agar tidak perlu scroll ke kanan —
+  lihat catatan di bawah), mengikuti semangat konvensi PLN/ACT di `TimeGrid` board utama tapi per-kolom:
+  tiap tap = satu kolom kecil (`w-16`) berisi token **PLAN** (selalu tampil, dengan caption `Tap #N` +
+  ringkasan lot) di atas, dan mirror **ACTION** (hanya bentuknya saja, tanpa caption, tampil hanya bila
+  `status === 'ACTION'`) di bawahnya, dipisah garis. Karena token PLAN tidak pernah disyaratkan status,
+  ia tetap terlihat walau tap-nya sudah ACTION — sesuai permintaan user, bukan berpindah/menghilang.
+  Label "▲ PLAN"/"▼ ACTION" ditampilkan sekali di atas grid (bukan per baris) karena barisnya bisa wrap.
+- **Tidak ada scroll horizontal:** kontainer kolom-kolom itu memakai `flex flex-wrap`, bukan
+  `overflow-x-auto`, jadi begitu kolom-kolom tidak muat di lebar layar, sisanya otomatis pindah ke
+  baris baru di bawah alih-alih menampilkan scrollbar ke kanan.
 - Token tapping (`TappingShapeIcon`): sebuah bentuk (`w-10 h-10`) berwarna `furnace.color`, isi
   hanya **nomor furnace** (tanpa label teks "Furnace N"):
   - `square` (persegi, default) — div biasa.

@@ -7,21 +7,40 @@ export default function LineStopPanel() {
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const lineStops = useBoardStore((s) => s.lineStops);
   const addLineStop = useBoardStore((s) => s.addLineStop);
+  const updateLineStop = useBoardStore((s) => s.updateLineStop);
   const removeLineStop = useBoardStore((s) => s.removeLineStop);
   const [start, setStart] = useState(shiftConfig.startMin);
   const [end, setEnd] = useState(shiftConfig.startMin + 5);
   const [ket, setKet] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editStart, setEditStart] = useState(0);
+  const [editEnd, setEditEnd] = useState(0);
+  const [editKet, setEditKet] = useState('');
 
   // Keep the form's default time inside the active shift's own window.
   useEffect(() => {
     setStart(shiftConfig.startMin);
     setEnd(shiftConfig.startMin + 5);
+    setEditingId(null);
   }, [shiftConfig.shiftNo, shiftConfig.startMin]);
 
   const submit = () => {
     if (end <= start || !ket.trim()) return;
     addLineStop(start, end, ket.trim());
     setKet('');
+  };
+
+  const startEdit = (id: string, s: number, e: number, k: string) => {
+    setEditingId(id);
+    setEditStart(s);
+    setEditEnd(e);
+    setEditKet(k);
+  };
+
+  const saveEdit = () => {
+    if (!editingId || editEnd <= editStart || !editKet.trim()) return;
+    updateLineStop(editingId, editStart, editEnd, editKet.trim());
+    setEditingId(null);
   };
 
   return (
@@ -57,12 +76,44 @@ export default function LineStopPanel() {
           )}
           {lineStops.map((s) => (
             <tr key={s.id} className="border-b border-red-600/20">
-              <td className="px-2 py-1 tabular-nums">{toHHmm(s.startMin)}–{toHHmm(s.endMin)}</td>
-              <td className="px-2 py-1">{s.durationMin}'</td>
-              <td className="px-2 py-1">{s.keterangan}</td>
-              <td className="px-2 py-1 text-right">
-                <button className="text-red-400 hover:text-red-200" onClick={() => removeLineStop(s.id)}>✕</button>
-              </td>
+              {editingId === s.id ? (
+                <>
+                  <td className="px-2 py-1" colSpan={2}>
+                    <span className="inline-flex items-center gap-2">
+                      <TimeSelect value={editStart} onChange={setEditStart} shift={shiftConfig} />
+                      <span>–</span>
+                      <TimeSelect value={editEnd} onChange={setEditEnd} shift={shiftConfig} />
+                    </span>
+                  </td>
+                  <td className="px-2 py-1">
+                    <input
+                      className="bg-black border border-cyan-500 px-1 w-full"
+                      value={editKet}
+                      onChange={(e) => setEditKet(e.target.value)}
+                    />
+                  </td>
+                  <td className="px-2 py-1 text-right whitespace-nowrap">
+                    <button className="text-green-400 hover:text-green-200 mr-2" onClick={saveEdit}>✓</button>
+                    <button className="text-gray-400 hover:text-gray-200" onClick={() => setEditingId(null)}>✕</button>
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td className="px-2 py-1 tabular-nums">{toHHmm(s.startMin)}–{toHHmm(s.endMin)}</td>
+                  <td className="px-2 py-1">{s.durationMin}'</td>
+                  <td className="px-2 py-1">{s.keterangan}</td>
+                  <td className="px-2 py-1 text-right whitespace-nowrap">
+                    <button
+                      className="text-cyan-400 hover:text-cyan-200 mr-2"
+                      title="Ubah"
+                      onClick={() => startEdit(s.id, s.startMin, s.endMin, s.keterangan)}
+                    >
+                      ✎
+                    </button>
+                    <button className="text-red-400 hover:text-red-200" onClick={() => removeLineStop(s.id)}>✕</button>
+                  </td>
+                </>
+              )}
             </tr>
           ))}
         </tbody>

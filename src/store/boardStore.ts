@@ -24,9 +24,11 @@ interface BoardState {
   // TappingGroup.id (stable per-tap id derived from its first lot).
   furnaceOverrides: Record<string, FurnaceId>;
   addLots: (requests: LotRequest[]) => void;
+  removeLots: (productCode: ProductCode, count: number) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
   setLotsProduct: (lotIds: string[], productCode: ProductCode) => void;
   addLineStop: (startMin: number, endMin: number, keterangan: string) => void;
+  updateLineStop: (id: string, startMin: number, endMin: number, keterangan: string) => void;
   removeLineStop: (id: string) => void;
   addBreak: (label: string, startMin: number, endMin: number) => void;
   updateBreak: (id: string, startMin: number, endMin: number) => void;
@@ -61,6 +63,22 @@ export const useBoardStore = create<BoardState>()(
         set({ planLots: applyLineStops(placed, shiftConfig, lineStops) });
       },
 
+      // Drop the highest-lotNo lots of a model (i.e. the most recently
+      // numbered ones for that product), not necessarily the last lots
+      // overall — a lot may have been retagged to another model via the
+      // grid, so "last for this model" and "last in the schedule" can differ.
+      removeLots: (productCode, count) => {
+        const { shiftConfig, planLots, lineStops } = get();
+        const toDrop = planLots
+          .filter((l) => l.productCode === productCode)
+          .sort((a, b) => b.lotNo - a.lotNo)
+          .slice(0, count)
+          .map((l) => l.id);
+        const dropSet = new Set(toDrop);
+        const remaining = renumberByProduct(planLots.filter((l) => !dropSet.has(l.id)));
+        set({ planLots: applyLineStops(remaining, shiftConfig, lineStops) });
+      },
+
       setLotProduct: (lotId, productCode) => {
         get().setLotsProduct([lotId], productCode);
       },
@@ -78,6 +96,21 @@ export const useBoardStore = create<BoardState>()(
         const { shiftConfig, planLots, lineStops } = get();
         const stop = makeLineStop(startMin, endMin, keterangan);
         const nextStops = [...lineStops, stop];
+        set({
+          lineStops: nextStops,
+          planLots: applyLineStops(planLots, shiftConfig, nextStops),
+        });
+      },
+
+      updateLineStop: (id, startMin, endMin, keterangan) => {
+        const { shiftConfig, planLots, lineStops } = get();
+        const nextStops = lineStops.map((s) => (
+          s.id === id
+            ? {
+              ...s, startMin, endMin, durationMin: Math.max(0, endMin - startMin), keterangan,
+            }
+            : s
+        ));
         set({
           lineStops: nextStops,
           planLots: applyLineStops(planLots, shiftConfig, nextStops),

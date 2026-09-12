@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_SHIFT, DEFAULT_PRODUCTS, DEFAULT_FURNACES, buildShiftConfig, ensureDandori, LOT_PITCH_SEC, LOT_DURATION_MIN,
+  DEFAULT_SHIFT, DEFAULT_PRODUCTS, DEFAULT_FURNACES, buildShiftConfig, ensureDandori, migrateShift, LOT_PITCH_SEC, LOT_DURATION_MIN,
 } from './defaults';
+import type { ShiftConfig } from './types';
 
 describe('defaults', () => {
   it('default shift takt time is 48 seconds (a separate reference figure)', () => {
@@ -88,6 +89,36 @@ describe('defaults', () => {
       delete legacy.productionStartMin;
       const repaired = ensureDandori(legacy as typeof shift);
       expect(repaired.productionStartMin).toBe(shift.startMin + 10);
+    });
+  });
+
+  describe('day-type break defaults', () => {
+    it('generates Dandori for both DAY and FRIDAY', () => {
+      const shift = buildShiftConfig(1);
+      for (const day of ['DAY', 'FRIDAY'] as const) {
+        expect(shift.breaks.some((b) => b.type === 'DANDORI' && b.day === day)).toBe(true);
+      }
+    });
+
+    it('makes the Friday main Istirahat longer than the weekday one', () => {
+      const shift = buildShiftConfig(1);
+      const dayMain = shift.breaks.find((b) => b.day === 'DAY' && b.type === 'ISTIRAHAT')!;
+      const friMain = shift.breaks.find((b) => b.day === 'FRIDAY' && b.type === 'ISTIRAHAT')!;
+      expect(friMain.endMin - friMain.startMin).toBeGreaterThan(dayMain.endMin - dayMain.startMin);
+    });
+
+    it('migrateShift tags legacy breaks DAY and synthesizes a FRIDAY set', () => {
+      const legacy = {
+        ...buildShiftConfig(1),
+        breaks: [{
+          id: 'old-1', type: 'WAKOM1' as const, label: 'W', startMin: 600, endMin: 610,
+        }],
+      } as unknown as ShiftConfig;
+      const migrated = migrateShift(legacy);
+      expect(migrated.breaks.every((b) => b.day === 'DAY' || b.day === 'FRIDAY')).toBe(true);
+      expect(migrated.breaks.some((b) => b.day === 'DAY')).toBe(true);
+      expect(migrated.breaks.some((b) => b.day === 'FRIDAY')).toBe(true);
+      expect(migrated.breaks.some((b) => b.type === 'DANDORI' && b.day === 'FRIDAY')).toBe(true);
     });
   });
 });

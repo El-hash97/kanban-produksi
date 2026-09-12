@@ -26,7 +26,7 @@ describe('autoPlaceLots', () => {
 
   it('skips over a break block instead of overlapping it', () => {
     const brk = [{
-      id: 'b1', type: 'WAKOM1' as const, label: 'W', startMin: 424, endMin: 434,
+      id: 'b1', type: 'WAKOM1' as const, label: 'W', day: 'DAY' as const, startMin: 424, endMin: 434,
     }];
     const lots = autoPlaceLots([{ productCode: '2TR', count: 3 }], shift(brk));
     // first at 420-421, break 424-434 skipped, then resume at 434, 438

@@ -4,6 +4,8 @@ export type BreakType =
   | 'DANDORI' | 'WAKOM1' | 'WAKOM2'
   | 'ISTIRAHAT1' | 'ISTIRAHAT' | 'MAGHRIB' | 'CUSTOM';
 
+export type DayType = 'DAY' | 'FRIDAY';
+
 export interface Range {
   startMin: number;
   endMin: number;
@@ -13,6 +15,7 @@ export interface Break extends Range {
   id: string;
   type: BreakType;
   label: string;
+  day: DayType;
 }
 
 export interface ShiftConfig {

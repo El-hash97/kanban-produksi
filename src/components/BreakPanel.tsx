@@ -8,6 +8,7 @@ const PRESETS = ['Dandori', 'Wakom', 'Istirahat'];
 export default function BreakPanel() {
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const breaks = shiftConfig.breaks;
+  const activeDay = useBoardStore((s) => s.activeDay);
   const addBreak = useBoardStore((s) => s.addBreak);
   const updateBreak = useBoardStore((s) => s.updateBreak);
   const removeBreak = useBoardStore((s) => s.removeBreak);
@@ -28,7 +29,7 @@ export default function BreakPanel() {
 
   const submit = () => {
     if (end <= start || !label.trim()) return;
-    addBreak(label.trim(), start, end);
+    addBreak(activeDay, label.trim(), start, end);
     setLabel('');
   };
 

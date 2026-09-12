@@ -14,6 +14,7 @@ beforeEach(() => {
     planLots: [],
     lineStops: [],
     furnaceOverrides: {},
+    activeDay: 'DAY',
   });
 });
 
@@ -74,7 +75,7 @@ describe('boardStore', () => {
   it('adding a break shifts lots scheduled during it', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
     // lots land at 430, 434, 438; a new break 430-440 pushes all past it
-    useBoardStore.getState().addBreak('Wakom-3', 430, 440);
+    useBoardStore.getState().addBreak('DAY', 'Wakom-3', 430, 440);
     const { shiftConfig, planLots } = useBoardStore.getState();
     expect(shiftConfig.breaks.some((b) => b.label === 'Wakom-3')).toBe(true);
     expect(planLots.map((l) => l.startMin)).toEqual([440, 444, 448]);
@@ -82,7 +83,7 @@ describe('boardStore', () => {
 
   it('removing a break restores the original schedule', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
-    useBoardStore.getState().addBreak('Wakom-3', 430, 440);
+    useBoardStore.getState().addBreak('DAY', 'Wakom-3', 430, 440);
     const brk = useBoardStore.getState().shiftConfig.breaks.find((b) => b.label === 'Wakom-3')!;
     useBoardStore.getState().removeBreak(brk.id);
     const { shiftConfig, planLots } = useBoardStore.getState();
@@ -112,7 +113,7 @@ describe('boardStore', () => {
     useBoardStore.getState().setShiftNo(2);
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
     useBoardStore.getState().addLineStop(1200, 1210, 'x');
-    useBoardStore.getState().addBreak('Wakom-3', 1500, 1505);
+    useBoardStore.getState().addBreak('DAY', 'Wakom-3', 1500, 1505);
 
     useBoardStore.getState().resetBoard();
 
@@ -125,7 +126,7 @@ describe('boardStore', () => {
   });
 
   it('a break added to shift 1 survives switching to shift 2 and back', () => {
-    useBoardStore.getState().addBreak('Wakom-3', 500, 505);
+    useBoardStore.getState().addBreak('DAY', 'Wakom-3', 500, 505);
     useBoardStore.getState().setShiftNo(2);
     useBoardStore.getState().setShiftNo(1);
 
@@ -191,9 +192,9 @@ describe('boardStore', () => {
   });
 
   it('each shift keeps its own independently-customized breaks', () => {
-    useBoardStore.getState().addBreak('Shift1-Only', 500, 505);
+    useBoardStore.getState().addBreak('DAY', 'Shift1-Only', 500, 505);
     useBoardStore.getState().setShiftNo(2);
-    useBoardStore.getState().addBreak('Shift2-Only', 1500, 1505);
+    useBoardStore.getState().addBreak('DAY', 'Shift2-Only', 1500, 1505);
 
     const shift2 = useBoardStore.getState().shiftConfig;
     expect(shift2.breaks.some((b) => b.label === 'Shift1-Only')).toBe(false);
@@ -226,5 +227,26 @@ describe('boardStore', () => {
     useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
     useBoardStore.getState().setShiftNo(2);
     expect(useBoardStore.getState().furnaceOverrides).toEqual({});
+  });
+
+  it('setActiveDay reflows lots around that day\'s breaks', () => {
+    // FRIDAY's main Istirahat is longer; place enough lots to reach it and
+    // confirm switching days changes the schedule tail.
+    useBoardStore.getState().addLots([{ productCode: '2TR', count: 120 }]);
+    const dayEnds = useBoardStore.getState().planLots.at(-1)!.startMin;
+    useBoardStore.getState().setActiveDay('FRIDAY');
+    expect(useBoardStore.getState().activeDay).toBe('FRIDAY');
+    const friEnds = useBoardStore.getState().planLots.at(-1)!.startMin;
+    expect(friEnds).toBeGreaterThan(dayEnds); // longer Friday break pushes the tail later
+  });
+
+  it('adding a FRIDAY break does not move the board while DAY is active', () => {
+    useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
+    const before = useBoardStore.getState().planLots.map((l) => l.startMin);
+    useBoardStore.getState().addBreak('FRIDAY', 'F-only', 430, 460);
+    expect(useBoardStore.getState().planLots.map((l) => l.startMin)).toEqual(before);
+    // but it applies once FRIDAY is active
+    useBoardStore.getState().setActiveDay('FRIDAY');
+    expect(useBoardStore.getState().planLots[0].startMin).toBeGreaterThanOrEqual(460);
   });
 });

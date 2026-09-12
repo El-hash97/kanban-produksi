@@ -1,5 +1,5 @@
 import type {
-  Break, LineStop, LotRequest, PlanLot, ProductCode, Range, ShiftConfig,
+  Break, DayType, LineStop, LotRequest, PlanLot, ProductCode, Range, ShiftConfig,
 } from '../domain/types';
 import { LOT_PITCH_SEC, LOT_DURATION_MIN } from '../domain/defaults';
 import { rangesOverlap } from './time';
@@ -63,6 +63,10 @@ export function placeSequence(
   return result;
 }
 
+export function effectiveShift(shift: ShiftConfig, day: DayType): ShiftConfig {
+  return { ...shift, breaks: shift.breaks.filter((b) => b.day === day) };
+}
+
 export function autoPlaceLots(requests: LotRequest[], shift: ShiftConfig): PlanLot[] {
   const order: { productCode: ProductCode; lotNo: number }[] = [];
   const counters: Record<string, number> = {};
@@ -97,9 +101,11 @@ export function renumberByProduct(planLots: PlanLot[]): PlanLot[] {
   });
 }
 
-export function makeBreak(label: string, startMin: number, endMin: number): Break {
+export function makeBreak(
+  label: string, startMin: number, endMin: number, day: DayType = 'DAY',
+): Break {
   return {
-    id: makeId('brk'), type: 'CUSTOM', label, startMin, endMin,
+    id: makeId('brk'), type: 'CUSTOM', label, startMin, endMin, day,
   };
 }
 

@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-  FurnaceId, LineStop, LotRequest, PlanLot, Product, ProductCode, ShiftConfig,
+  DayType, FurnaceId, LineStop, LotRequest, PlanLot, Product, ProductCode, ShiftConfig,
 } from '../domain/types';
 import {
-  buildShiftConfig, DEFAULT_PRODUCTS, DEFAULT_SHIFT, ensureDandori,
+  buildShiftConfig, DEFAULT_PRODUCTS, DEFAULT_SHIFT, ensureDandori, migrateShift,
 } from '../domain/defaults';
 import {
-  applyLineStops, autoPlaceLots, makeBreak, makeLineStop, renumberByProduct,
+  applyLineStops, autoPlaceLots, effectiveShift, makeBreak, makeLineStop, renumberByProduct,
 } from '../lib/scheduling';
+import { todayDayType } from '../lib/time';
 
 interface BoardState {
   shiftConfig: ShiftConfig;
@@ -23,6 +24,10 @@ interface BoardState {
   // Manual furnace reassignments for the Tapping Furnace panel, keyed by
   // TappingGroup.id (stable per-tap id derived from its first lot).
   furnaceOverrides: Record<string, FurnaceId>;
+  // Which break schedule (DAY vs FRIDAY) is currently driving the board.
+  // Auto-set from the real date on load (persist merge); overridable for
+  // the running session via setActiveDay.
+  activeDay: DayType;
   addLots: (requests: LotRequest[]) => void;
   removeLots: (productCode: ProductCode, count: number) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
@@ -30,11 +35,12 @@ interface BoardState {
   addLineStop: (startMin: number, endMin: number, keterangan: string) => void;
   updateLineStop: (id: string, startMin: number, endMin: number, keterangan: string) => void;
   removeLineStop: (id: string) => void;
-  addBreak: (label: string, startMin: number, endMin: number) => void;
+  addBreak: (day: DayType, label: string, startMin: number, endMin: number) => void;
   updateBreak: (id: string, startMin: number, endMin: number) => void;
   removeBreak: (id: string) => void;
   setProductionStart: (startMin: number) => void;
   setShiftNo: (shiftNo: number) => void;
+  setActiveDay: (day: DayType) => void;
   setTappingFurnaceOverride: (tapId: string, furnaceId: FurnaceId) => void;
   resetBoard: () => void;
 }
@@ -54,13 +60,17 @@ export const useBoardStore = create<BoardState>()(
       planLots: [],
       lineStops: [],
       furnaceOverrides: {},
+      activeDay: 'DAY',
 
       addLots: (requests) => {
-        const { shiftConfig, planLots, lineStops } = get();
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
+        const eff = effectiveShift(shiftConfig, activeDay);
         const existing = recount(planLots);
         const merged = [...existing, ...requests];
-        const placed = autoPlaceLots(merged, shiftConfig);
-        set({ planLots: applyLineStops(placed, shiftConfig, lineStops) });
+        const placed = autoPlaceLots(merged, eff);
+        set({ planLots: applyLineStops(placed, eff, lineStops) });
       },
 
       // Drop the highest-lotNo lots of a model (i.e. the most recently
@@ -68,7 +78,9 @@ export const useBoardStore = create<BoardState>()(
       // overall — a lot may have been retagged to another model via the
       // grid, so "last for this model" and "last in the schedule" can differ.
       removeLots: (productCode, count) => {
-        const { shiftConfig, planLots, lineStops } = get();
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
         const toDrop = planLots
           .filter((l) => l.productCode === productCode)
           .sort((a, b) => b.lotNo - a.lotNo)
@@ -76,7 +88,7 @@ export const useBoardStore = create<BoardState>()(
           .map((l) => l.id);
         const dropSet = new Set(toDrop);
         const remaining = renumberByProduct(planLots.filter((l) => !dropSet.has(l.id)));
-        set({ planLots: applyLineStops(remaining, shiftConfig, lineStops) });
+        set({ planLots: applyLineStops(remaining, effectiveShift(shiftConfig, activeDay), lineStops) });
       },
 
       setLotProduct: (lotId, productCode) => {
@@ -93,17 +105,21 @@ export const useBoardStore = create<BoardState>()(
       },
 
       addLineStop: (startMin, endMin, keterangan) => {
-        const { shiftConfig, planLots, lineStops } = get();
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
         const stop = makeLineStop(startMin, endMin, keterangan);
         const nextStops = [...lineStops, stop];
         set({
           lineStops: nextStops,
-          planLots: applyLineStops(planLots, shiftConfig, nextStops),
+          planLots: applyLineStops(planLots, effectiveShift(shiftConfig, activeDay), nextStops),
         });
       },
 
       updateLineStop: (id, startMin, endMin, keterangan) => {
-        const { shiftConfig, planLots, lineStops } = get();
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
         const nextStops = lineStops.map((s) => (
           s.id === id
             ? {
@@ -113,29 +129,31 @@ export const useBoardStore = create<BoardState>()(
         ));
         set({
           lineStops: nextStops,
-          planLots: applyLineStops(planLots, shiftConfig, nextStops),
+          planLots: applyLineStops(planLots, effectiveShift(shiftConfig, activeDay), nextStops),
         });
       },
 
       removeLineStop: (id) => {
-        const { shiftConfig, planLots, lineStops } = get();
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
         const nextStops = lineStops.filter((s) => s.id !== id);
         set({
           lineStops: nextStops,
-          planLots: applyLineStops(planLots, shiftConfig, nextStops),
+          planLots: applyLineStops(planLots, effectiveShift(shiftConfig, activeDay), nextStops),
         });
       },
 
-      addBreak: (label, startMin, endMin) => {
+      addBreak: (day, label, startMin, endMin) => {
         const {
-          shiftConfig, planLots, lineStops, shiftPresets,
+          shiftConfig, planLots, lineStops, shiftPresets, activeDay,
         } = get();
-        const brk = makeBreak(label, startMin, endMin);
+        const brk = makeBreak(label, startMin, endMin, day);
         const nextShift = { ...shiftConfig, breaks: [...shiftConfig.breaks, brk] };
         set({
           shiftConfig: nextShift,
           shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },
-          planLots: applyLineStops(planLots, nextShift, lineStops),
+          planLots: applyLineStops(planLots, effectiveShift(nextShift, activeDay), lineStops),
         });
       },
 
@@ -143,7 +161,7 @@ export const useBoardStore = create<BoardState>()(
       // editable — e.g. if the real shift's setup window isn't 10 minutes.
       updateBreak: (id, startMin, endMin) => {
         const {
-          shiftConfig, planLots, lineStops, shiftPresets,
+          shiftConfig, planLots, lineStops, shiftPresets, activeDay,
         } = get();
         const nextShift = {
           ...shiftConfig,
@@ -152,7 +170,7 @@ export const useBoardStore = create<BoardState>()(
         set({
           shiftConfig: nextShift,
           shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },
-          planLots: applyLineStops(planLots, nextShift, lineStops),
+          planLots: applyLineStops(planLots, effectiveShift(nextShift, activeDay), lineStops),
         });
       },
 
@@ -161,7 +179,7 @@ export const useBoardStore = create<BoardState>()(
       // still be in the list.
       removeBreak: (id) => {
         const {
-          shiftConfig, planLots, lineStops, shiftPresets,
+          shiftConfig, planLots, lineStops, shiftPresets, activeDay,
         } = get();
         const nextShift = {
           ...shiftConfig,
@@ -170,7 +188,7 @@ export const useBoardStore = create<BoardState>()(
         set({
           shiftConfig: nextShift,
           shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },
-          planLots: applyLineStops(planLots, nextShift, lineStops),
+          planLots: applyLineStops(planLots, effectiveShift(nextShift, activeDay), lineStops),
         });
       },
 
@@ -178,13 +196,13 @@ export const useBoardStore = create<BoardState>()(
       // after Dandori). Existing lots reflow immediately, same as breaks.
       setProductionStart: (startMin) => {
         const {
-          shiftConfig, planLots, lineStops, shiftPresets,
+          shiftConfig, planLots, lineStops, shiftPresets, activeDay,
         } = get();
         const nextShift = { ...shiftConfig, productionStartMin: startMin };
         set({
           shiftConfig: nextShift,
           shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },
-          planLots: applyLineStops(planLots, nextShift, lineStops),
+          planLots: applyLineStops(planLots, effectiveShift(nextShift, activeDay), lineStops),
         });
       },
 
@@ -202,6 +220,18 @@ export const useBoardStore = create<BoardState>()(
           planLots: [],
           lineStops: [],
           furnaceOverrides: {},
+        });
+      },
+
+      // Switches which day's break schedule drives the board (DAY vs
+      // FRIDAY) and immediately reflows existing lots around it. This is a
+      // session-only override — reopening the app re-derives the day from
+      // the real date (see the persist `merge` below).
+      setActiveDay: (day) => {
+        const { shiftConfig, planLots, lineStops } = get();
+        set({
+          activeDay: day,
+          planLots: applyLineStops(planLots, effectiveShift(shiftConfig, day), lineStops),
         });
       },
 
@@ -229,15 +259,19 @@ export const useBoardStore = create<BoardState>()(
     {
       name: 'shikake-board-v1',
       // Repair any state saved before Dandori became mandatory (or from a
-      // session where it was removed under the old rules), so the fix
-      // applies immediately on load rather than only after the next
-      // addBreak/removeBreak/setShiftNo call.
+      // session where it was removed under the old rules), and upgrade
+      // breaks persisted before they carried a `day` tag (migrateShift
+      // tags them DAY and synthesizes a FRIDAY set, then ensures Dandori
+      // for both days) — so the fix applies immediately on load rather
+      // than only after the next addBreak/removeBreak/setShiftNo call.
+      // activeDay is re-derived from the real date on every load.
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as Partial<BoardState>) };
-        merged.shiftConfig = ensureDandori(merged.shiftConfig);
+        merged.shiftConfig = migrateShift(merged.shiftConfig);
         merged.shiftPresets = Object.fromEntries(
-          Object.entries(merged.shiftPresets).map(([k, v]) => [k, ensureDandori(v)]),
+          Object.entries(merged.shiftPresets).map(([k, v]) => [k, migrateShift(v)]),
         );
+        merged.activeDay = todayDayType();
         return merged;
       },
     },

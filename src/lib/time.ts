@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import type { Range, ShiftConfig } from '../domain/types';
+import type { DayType, Range, ShiftConfig } from '../domain/types';
 
 export function toMinOfDay(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
@@ -42,4 +42,8 @@ export function toShiftMin(shift: ShiftConfig, clockMin: number): number {
 
 export function nowMinForShift(shift: ShiftConfig, d: Date = new Date()): number {
   return toShiftMin(shift, nowMinOfDay(d));
+}
+
+export function todayDayType(d: Date = new Date()): DayType {
+  return d.getDay() === 5 ? 'FRIDAY' : 'DAY';
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { deriveActual } from '../lib/scheduling';
+import { deriveActual, effectiveShift } from '../lib/scheduling';
 import { useNowMin } from '../hooks/useNowMin';
 import { colSpan, hourRange } from '../lib/grid';
 import { toHHmm } from '../lib/time';
@@ -90,6 +90,7 @@ export default function TimeGrid() {
   const planLots = useBoardStore((s) => s.planLots);
   const lineStops = useBoardStore((s) => s.lineStops);
   const products = useBoardStore((s) => s.products);
+  const activeDay = useBoardStore((s) => s.activeDay);
   const setLotsProduct = useBoardStore((s) => s.setLotsProduct);
   const nowMin = useNowMin(shiftConfig);
   const actualLots = useMemo(() => deriveActual(planLots, nowMin), [planLots, nowMin]);
@@ -176,7 +177,11 @@ export default function TimeGrid() {
               selectedIds={selectedIds}
             />
             <LotBoxes lots={actualLots} hour={hour} products={products} row={2} />
-            <Overlays breaks={shiftConfig.breaks} lineStops={lineStops} hour={hour} />
+            <Overlays
+              breaks={effectiveShift(shiftConfig, activeDay).breaks}
+              lineStops={lineStops}
+              hour={hour}
+            />
           </div>
         </div>
       ))}

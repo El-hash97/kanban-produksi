@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  toMinOfDay, toHHmm, hourStart, rangesOverlap, nowMinOfDay, nowMinForShift, toShiftMin,
+  toMinOfDay, toHHmm, hourStart, rangesOverlap, nowMinOfDay, nowMinForShift, toShiftMin, todayDayType,
 } from './time';
 import type { ShiftConfig } from '../domain/types';
 
@@ -62,6 +62,14 @@ describe('time', () => {
 
     it('toShiftMin is a no-op for a same-day shift', () => {
       expect(toShiftMin(dayShift, toMinOfDay('08:45'))).toBe(525);
+    });
+  });
+
+  describe('todayDayType', () => {
+    it('returns FRIDAY on a Friday and DAY otherwise', () => {
+      expect(todayDayType(new Date(2026, 8, 11))).toBe('FRIDAY'); // 2026-09-11 is a Friday
+      expect(todayDayType(new Date(2026, 8, 14))).toBe('DAY');    // Monday
+      expect(todayDayType(new Date(2026, 8, 13))).toBe('DAY');    // Sunday
     });
   });
 });

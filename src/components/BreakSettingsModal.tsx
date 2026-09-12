@@ -1,17 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
+import type { Break, DayType } from '../domain/types';
 import { toHHmm } from '../lib/time';
 import TimeSelect from './TimeSelect';
 
-const PRESETS = ['Dandori', 'Wakom', 'Istirahat'];
+const DAY_TABLES: { day: DayType; title: string }[] = [
+  { day: 'DAY', title: 'HARI BIASA (DAY)' },
+  { day: 'FRIDAY', title: 'JUMAT (FRIDAY)' },
+];
 
-export default function BreakPanel() {
+function DayTable({ day, title }: { day: DayType; title: string }) {
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
-  const breaks = shiftConfig.breaks;
-  const activeDay = useBoardStore((s) => s.activeDay);
   const addBreak = useBoardStore((s) => s.addBreak);
   const updateBreak = useBoardStore((s) => s.updateBreak);
   const removeBreak = useBoardStore((s) => s.removeBreak);
+
+  const rows = shiftConfig.breaks
+    .filter((b) => b.day === day)
+    .sort((a, b) => a.startMin - b.startMin);
+
   const [start, setStart] = useState(shiftConfig.startMin);
   const [end, setEnd] = useState(shiftConfig.startMin + 10);
   const [label, setLabel] = useState('');
@@ -19,66 +26,25 @@ export default function BreakPanel() {
   const [editStart, setEditStart] = useState(0);
   const [editEnd, setEditEnd] = useState(0);
 
-  // Default the form to the active shift's own start whenever the shift
-  // changes, so shift 2 (19:00-07:00) doesn't default to shift 1's hours.
-  useEffect(() => {
-    setStart(shiftConfig.startMin);
-    setEnd(shiftConfig.startMin + 10);
-    setEditingId(null);
-  }, [shiftConfig.shiftNo, shiftConfig.startMin]);
-
   const submit = () => {
     if (end <= start || !label.trim()) return;
-    addBreak(activeDay, label.trim(), start, end);
+    addBreak(day, label.trim(), start, end);
     setLabel('');
   };
-
-  const startEdit = (id: string, s: number, e: number) => {
-    setEditingId(id);
-    setEditStart(s);
-    setEditEnd(e);
+  const startEdit = (b: Break) => {
+    setEditingId(b.id);
+    setEditStart(b.startMin);
+    setEditEnd(b.endMin);
   };
-
   const saveEdit = () => {
     if (!editingId || editEnd <= editStart) return;
     updateBreak(editingId, editStart, editEnd);
     setEditingId(null);
   };
 
-  const sorted = [...breaks].sort((a, b) => a.startMin - b.startMin);
-
   return (
-    <div className="text-white text-xs">
-      <div className="bg-blue-900/40 px-2 py-1 font-bold text-green-400">
-        DANDORI / WAKOM / ISTIRAHAT
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-blue-500/40">
-        <span>Mulai</span><TimeSelect value={start} onChange={setStart} shift={shiftConfig} />
-        <span>Selesai</span><TimeSelect value={end} onChange={setEnd} shift={shiftConfig} />
-        <input
-          className="bg-black border border-cyan-500 px-1 flex-1 min-w-[8rem]"
-          placeholder="Nama (mis. Wakom-3)"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-        />
-        <button className="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded" onClick={submit}>
-          + Tambah
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-1 p-2 border-b border-blue-500/40">
-        {PRESETS.map((p) => (
-          <button
-            key={p}
-            className="bg-gray-700 hover:bg-gray-600 px-2 py-0.5 rounded"
-            onClick={() => setLabel(p)}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
-
+    <div className="flex-1 min-w-[16rem] border border-cyan-500/40">
+      <div className="bg-blue-900/40 px-2 py-1 font-bold text-green-400">{title}</div>
       <table className="w-full text-[11px]">
         <thead className="text-green-400">
           <tr className="border-b border-blue-500/40">
@@ -88,10 +54,7 @@ export default function BreakPanel() {
           </tr>
         </thead>
         <tbody>
-          {sorted.length === 0 && (
-            <tr><td colSpan={3} className="px-2 py-2 text-gray-500">Belum ada dandori/wakom/istirahat.</td></tr>
-          )}
-          {sorted.map((b) => (
+          {rows.map((b) => (
             <tr key={b.id} className="border-b border-blue-500/20">
               {editingId === b.id ? (
                 <>
@@ -112,15 +75,9 @@ export default function BreakPanel() {
                   <td className="px-2 py-1 tabular-nums">{toHHmm(b.startMin)}–{toHHmm(b.endMin)}</td>
                   <td className="px-2 py-1">{b.label}</td>
                   <td className="px-2 py-1 text-right whitespace-nowrap">
-                    <button
-                      className="text-cyan-400 hover:text-cyan-200 mr-2"
-                      title="Ubah jam"
-                      onClick={() => startEdit(b.id, b.startMin, b.endMin)}
-                    >
-                      ✎
-                    </button>
+                    <button className="text-cyan-400 hover:text-cyan-200 mr-2" title="Ubah jam" onClick={() => startEdit(b)}>✎</button>
                     {b.type === 'DANDORI' ? (
-                      <span className="text-gray-600" title="Dandori wajib ada agar lot selalu digenerate setelahnya">🔒</span>
+                      <span className="text-gray-600" title="Dandori wajib ada">🔒</span>
                     ) : (
                       <button className="text-red-400 hover:text-red-200" onClick={() => removeBreak(b.id)}>✕</button>
                     )}
@@ -131,6 +88,40 @@ export default function BreakPanel() {
           ))}
         </tbody>
       </table>
+      <div className="flex flex-wrap items-center gap-2 p-2 border-t border-blue-500/40">
+        <TimeSelect value={start} onChange={setStart} shift={shiftConfig} />
+        <span>–</span>
+        <TimeSelect value={end} onChange={setEnd} shift={shiftConfig} />
+        <input
+          className="bg-black border border-cyan-500 px-1 flex-1 min-w-[6rem]"
+          placeholder="Nama (mis. Wakom-3)"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <button className="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded" onClick={submit}>+ Tambah</button>
+      </div>
+    </div>
+  );
+}
+
+export default function BreakSettingsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+      <div
+        className="bg-black border-2 border-cyan-500 text-white text-xs max-w-4xl w-[90vw] max-h-[85vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between bg-cyan-900/40 px-3 py-2 border-b border-cyan-500/50">
+          <span className="font-bold text-green-400">SETTING DANDORI / WAKOM / ISTIRAHAT</span>
+          <button className="text-gray-300 hover:text-white text-base" onClick={onClose} title="Tutup">✕</button>
+        </div>
+        <div className="flex flex-wrap gap-2 p-3">
+          {DAY_TABLES.map((t) => <DayTable key={t.day} day={t.day} title={t.title} />)}
+        </div>
+        <div className="px-3 py-2 text-gray-400 border-t border-cyan-500/30">
+          Perubahan langsung tersimpan. Papan mengikuti jadwal hari aktif secara otomatis.
+        </div>
+      </div>
     </div>
   );
 }

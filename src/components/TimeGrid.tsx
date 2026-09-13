@@ -137,7 +137,7 @@ export default function TimeGrid() {
   return (
     <div className="border-2 border-red-600/70 text-white relative">
       {/* minute header */}
-      <div className="flex border-b border-red-600/50 text-[10px] text-yellow-300">
+      <div className="flex border-b-2 border-red-600/60 text-[10px] text-yellow-300">
         <div className="w-24 shrink-0 px-1 py-0.5 font-bold">WAKTU</div>
         <div className="grid flex-1" style={{ gridTemplateColumns: 'repeat(60, 1fr)' }}>
           {MINUTE_HEADERS.map((m) => (
@@ -149,7 +149,7 @@ export default function TimeGrid() {
       </div>
 
       {hours.map((hour) => (
-        <div key={hour} className="flex border-b border-red-600/40">
+        <div key={hour} className="flex border-b-2 border-red-600/50">
           <div className="w-24 shrink-0 flex flex-col text-[10px]">
             <div className="px-1 font-bold text-cyan-200">{toHHmm(hour)}</div>
             <div className="px-1 text-yellow-400 border-t border-red-600/30">PLN</div>
@@ -161,8 +161,8 @@ export default function TimeGrid() {
               gridTemplateColumns: 'repeat(60, 1fr)',
               gridTemplateRows: '18px 18px',
               backgroundImage: [
-                'repeating-linear-gradient(to right, transparent, transparent calc(100%/60 - 1px), rgba(220,38,38,0.18) calc(100%/60))',
-                'repeating-linear-gradient(to right, transparent, transparent calc(100%/12 - 1px), rgba(220,38,38,0.4) calc(100%/12))',
+                'repeating-linear-gradient(to right, transparent, transparent calc(100%/60 - 2px), rgba(220,38,38,0.28) calc(100%/60))',
+                'repeating-linear-gradient(to right, transparent, transparent calc(100%/12 - 3px), rgba(220,38,38,0.55) calc(100%/12))',
               ].join(', '),
             }}
           >

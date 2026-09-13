@@ -376,6 +376,11 @@ export const useBoardStore = create<BoardState>()(
           Object.entries(merged.shiftPresets).map(([k, v]) => [k, migrateShift(v)]),
         );
         merged.activeDay = todayDayType();
+        // products is a fixed catalog (nothing ever edits an individual
+        // product's fields — resetBoard restores DEFAULT_PRODUCTS too), so
+        // always resync it from source instead of trusting a persisted copy
+        // that may predate a label/reference-figure change.
+        merged.products = DEFAULT_PRODUCTS;
         return merged;
       },
     },

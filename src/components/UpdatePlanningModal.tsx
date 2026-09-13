@@ -11,6 +11,8 @@ export default function UpdatePlanningModal({ onClose }: { onClose: () => void }
   const sandPerMixing = useBoardStore((s) => s.sandPerMixing);
   const setSandPerMixing = useBoardStore((s) => s.setSandPerMixing);
   const applyPlanningTargets = useBoardStore((s) => s.applyPlanningTargets);
+  const logPlanningSnapshot = useBoardStore((s) => s.logPlanningSnapshot);
+  const shiftConfig = useBoardStore((s) => s.shiftConfig);
 
   const currentCounts = useMemo(() => {
     const counts: Record<ProductCode, number> = {
@@ -23,9 +25,17 @@ export default function UpdatePlanningModal({ onClose }: { onClose: () => void }
   const [target, setTarget] = useState<Record<ProductCode, number>>(currentCounts);
   const [sandQty, setSandQty] = useState(sandPerMixing);
 
+  // Logs into the same planningHistory Input Planning writes to, so the two
+  // entry points share one combined history (spec §5). This window doesn't
+  // re-ask for Group/Time Begin, so the snapshot carries the shift's current
+  // values for those.
   const submit = () => {
     applyPlanningTargets(products.map((p) => ({ productCode: p.code, qty: target[p.code] })));
     setSandPerMixing(sandQty);
+    const entries = products.map((p) => ({
+      productCode: p.code, qty: target[p.code], sandMeasTimeMin: p.sandMeasTimeMin,
+    }));
+    logPlanningSnapshot(entries, shiftConfig.group, shiftConfig.productionStartMin);
   };
 
   return (

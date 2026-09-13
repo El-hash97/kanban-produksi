@@ -3,7 +3,7 @@ import { autoPlaceLots } from './scheduling';
 import type { ShiftConfig } from '../domain/types';
 
 const shift = (breaks: ShiftConfig['breaks'] = []): ShiftConfig => ({
-  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks, productionStartMin: 420,
+  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks, productionStartMin: 420, group: 'RED',
 });
 
 describe('autoPlaceLots', () => {

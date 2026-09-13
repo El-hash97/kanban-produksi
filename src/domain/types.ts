@@ -6,6 +6,10 @@ export type BreakType =
 
 export type DayType = 'DAY' | 'FRIDAY';
 
+export type LineStopCategory = 'AV' | 'PE' | 'RQ';
+
+export type TeamGroup = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW';
+
 export interface Range {
   startMin: number;
   endMin: number;
@@ -29,12 +33,15 @@ export interface ShiftConfig {
    * after Dandori, but is independently editable (e.g. production may be
    * meant to start at a round 07:15 rather than exactly when Dandori ends). */
   productionStartMin: number;
+  group: TeamGroup;
 }
 
 export interface Product {
   code: ProductCode;
   label: string;
   color: string;
+  sandMeasTimeMin: number;
+  moldPerBatch: number;
 }
 
 export type FurnaceId = 1 | 2 | 3 | 4;
@@ -60,9 +67,34 @@ export interface LineStop {
   endMin: number;
   durationMin: number;
   keterangan: string;
+  counterMeasure: string;
+  category: LineStopCategory;
 }
 
 export interface LotRequest {
   productCode: ProductCode;
   count: number;
+}
+
+export interface PlanningEntry {
+  productCode: ProductCode;
+  qty: number;
+  sandMeasTimeMin: number;
+}
+
+export interface PlanningSnapshot {
+  id: string;
+  at: number;
+  entries: PlanningEntry[];
+  totalQty: number;
+  taktTimeSec: number;
+  timeBeginMin: number;
+  group: TeamGroup;
+  sandPerMixing: number;
+}
+
+export interface InformasiNote {
+  id: string;
+  at: number;
+  text: string;
 }

@@ -34,10 +34,10 @@ describe('time', () => {
 
   describe('nowMinForShift', () => {
     const dayShift: ShiftConfig = {
-      startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks: [], productionStartMin: 420,
+      startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks: [], productionStartMin: 420, group: 'RED',
     };
     const nightShift: ShiftConfig = {
-      startMin: 1140, endMin: 1860, pic: 'X', shiftNo: 2, tTimeSec: 48, breaks: [], productionStartMin: 1140,
+      startMin: 1140, endMin: 1860, pic: 'X', shiftNo: 2, tTimeSec: 48, breaks: [], productionStartMin: 1140, group: 'RED',
     };
 
     it('is a no-op for a same-day shift', () => {

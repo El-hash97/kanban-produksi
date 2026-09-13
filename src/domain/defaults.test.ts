@@ -121,4 +121,35 @@ describe('defaults', () => {
       expect(migrated.breaks.some((b) => b.type === 'DANDORI' && b.day === 'FRIDAY')).toBe(true);
     });
   });
+
+  describe('input parameter defaults', () => {
+    it('relabels KAI as CAMS without changing its product code', () => {
+      const kai = DEFAULT_PRODUCTS.find((p) => p.code === 'KAI')!;
+      expect(kai.label).toBe('CAMS');
+    });
+
+    it('carries reference sand/mold figures per product', () => {
+      const byCode = Object.fromEntries(DEFAULT_PRODUCTS.map((p) => [p.code, p]));
+      expect(byCode['2TR'].sandMeasTimeMin).toBe(9.5);
+      expect(byCode['2TR'].moldPerBatch).toBe(7);
+      expect(byCode['1TR'].sandMeasTimeMin).toBe(9.5);
+      expect(byCode['1TR'].moldPerBatch).toBe(7);
+      expect(byCode.KAI.sandMeasTimeMin).toBe(11.5);
+      expect(byCode.KAI.moldPerBatch).toBe(5);
+      expect(byCode.CRANK.sandMeasTimeMin).toBe(11.5);
+      expect(byCode.CRANK.moldPerBatch).toBe(5);
+    });
+
+    it('defaults a new shift\'s team group to RED', () => {
+      const shift = buildShiftConfig(1);
+      expect(shift.group).toBe('RED');
+    });
+
+    it('migrateShift backfills a missing group as RED on legacy state', () => {
+      const legacy = { ...buildShiftConfig(1) } as Partial<ShiftConfig>;
+      delete legacy.group;
+      const migrated = migrateShift(legacy as ShiftConfig);
+      expect(migrated.group).toBe('RED');
+    });
+  });
 });

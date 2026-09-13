@@ -7,7 +7,7 @@ const brk = (day: 'DAY' | 'FRIDAY', startMin: number, endMin: number): Break => 
 });
 
 const shift: ShiftConfig = {
-  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, productionStartMin: 420,
+  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, productionStartMin: 420, group: 'RED',
   breaks: [brk('DAY', 700, 745), brk('FRIDAY', 700, 780)],
 };
 

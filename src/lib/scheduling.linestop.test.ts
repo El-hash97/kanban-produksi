@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { autoPlaceLots, applyLineStops, makeLineStop } from './scheduling';
 
 const shift = {
-  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks: [], productionStartMin: 420,
+  startMin: 420, endMin: 1140, pic: 'X', shiftNo: 1, tTimeSec: 48, breaks: [], productionStartMin: 420, group: 'RED' as const,
 };
 
 describe('applyLineStops', () => {

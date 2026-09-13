@@ -78,6 +78,7 @@ export function buildShiftConfig(shiftNo: number, pic = 'Bernad', tTimeSec = 48)
     tTimeSec,
     breaks: buildBreaks(shiftNo, startMin),
     productionStartMin: startMin + 10, // right after the default Dandori window
+    group: 'RED',
   };
 }
 
@@ -135,14 +136,23 @@ export function migrateShift(shift: ShiftConfig): ShiftConfig {
       }));
     breaks = [...breaks, ...friday];
   }
-  return ensureDandori({ ...shift, breaks });
+  const withGroup = shift.group ? shift : { ...shift, group: 'RED' as const };
+  return ensureDandori({ ...withGroup, breaks });
 }
 
 export const DEFAULT_PRODUCTS: Product[] = [
-  { code: '2TR', label: 'B/C 2TR', color: '#3b82f6' },
-  { code: '1TR', label: 'B/C 1TR', color: '#d946ef' },
-  { code: 'KAI', label: 'TR-KAI', color: '#f59e0b' },
-  { code: 'CRANK', label: 'CRANK', color: '#22c55e' },
+  {
+    code: '2TR', label: 'B/C 2TR', color: '#3b82f6', sandMeasTimeMin: 9.5, moldPerBatch: 7,
+  },
+  {
+    code: '1TR', label: 'B/C 1TR', color: '#d946ef', sandMeasTimeMin: 9.5, moldPerBatch: 7,
+  },
+  {
+    code: 'KAI', label: 'CAMS', color: '#f59e0b', sandMeasTimeMin: 11.5, moldPerBatch: 5,
+  },
+  {
+    code: 'CRANK', label: 'CRANK', color: '#22c55e', sandMeasTimeMin: 11.5, moldPerBatch: 5,
+  },
 ];
 
 export const DEFAULT_FURNACES: Furnace[] = [

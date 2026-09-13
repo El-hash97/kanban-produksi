@@ -13,9 +13,13 @@ function makeId(prefix: string): string {
 }
 
 /**
- * Advance `cursor` forward until a LOT_PITCH_MIN slot starting there overlaps
- * no block. Blocks may overlap each other; we loop until the position is
- * stable.
+ * Advance `cursor` forward until a LOT_DURATION_MIN slot starting there
+ * overlaps no block — checked against the lot's actual occupied width, not
+ * the full pitch, so a slot up to (LOT_PITCH_MIN - LOT_DURATION_MIN) minutes
+ * before a break still gets used instead of being skipped needlessly (that
+ * skip was the bug: it widened the gap right before every break and
+ * permanently delayed every later lot by one pitch cycle). Blocks may
+ * overlap each other; we loop until the position is stable.
  */
 function nextFreeStart(cursor: number, blocks: Range[]): number {
   let pos = cursor;
@@ -23,7 +27,7 @@ function nextFreeStart(cursor: number, blocks: Range[]): number {
   while (moved) {
     moved = false;
     for (const b of blocks) {
-      if (rangesOverlap({ startMin: pos, endMin: pos + LOT_PITCH_MIN }, b)) {
+      if (rangesOverlap({ startMin: pos, endMin: pos + LOT_DURATION_MIN }, b)) {
         pos = b.endMin;
         moved = true;
       }

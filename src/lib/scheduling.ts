@@ -1,5 +1,5 @@
 import type {
-  Break, DayType, LineStop, LotRequest, PlanLot, ProductCode, Range, ShiftConfig,
+  Break, DayType, LineStop, LineStopCategory, LotRequest, PlanLot, ProductCode, Range, ShiftConfig,
 } from '../domain/types';
 import { LOT_PITCH_SEC, LOT_DURATION_MIN } from '../domain/defaults';
 import { rangesOverlap } from './time';
@@ -109,13 +109,21 @@ export function makeBreak(
   };
 }
 
-export function makeLineStop(startMin: number, endMin: number, keterangan: string): LineStop {
+export function makeLineStop(
+  startMin: number,
+  endMin: number,
+  keterangan: string,
+  counterMeasure = '',
+  category: LineStopCategory = 'AV',
+): LineStop {
   return {
     id: makeId('ls'),
     startMin,
     endMin,
     durationMin: Math.max(0, endMin - startMin),
     keterangan,
+    counterMeasure,
+    category,
   };
 }
 

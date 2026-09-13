@@ -42,6 +42,7 @@ export default function BoardHeader() {
           </select>
         </div>
         <div>T.TIME : {shift.tTimeSec}</div>
+        <div>GROUP : <span className="text-cyan-300">{shift.group}</span></div>
       </div>
       <div className="px-3 py-1 text-right border-l border-cyan-500/40">
         <div className="text-green-400 text-xl font-bold tabular-nums">

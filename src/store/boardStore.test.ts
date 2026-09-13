@@ -15,6 +15,9 @@ beforeEach(() => {
     lineStops: [],
     furnaceOverrides: {},
     activeDay: 'DAY',
+    planningHistory: [],
+    informasiLog: [],
+    sandPerMixing: 2700,
   });
 });
 
@@ -248,5 +251,95 @@ describe('boardStore', () => {
     // but it applies once FRIDAY is active
     useBoardStore.getState().setActiveDay('FRIDAY');
     expect(useBoardStore.getState().planLots[0].startMin).toBeGreaterThanOrEqual(460);
+  });
+
+  it('setPic updates the PIC name for the active shift', () => {
+    useBoardStore.getState().setPic('Rudi');
+    expect(useBoardStore.getState().shiftConfig.pic).toBe('Rudi');
+  });
+
+  it('setGroup updates the team group for the active shift', () => {
+    useBoardStore.getState().setGroup('BLUE');
+    expect(useBoardStore.getState().shiftConfig.group).toBe('BLUE');
+  });
+
+  it('setSandPerMixing updates the sand-per-mixing setting', () => {
+    useBoardStore.getState().setSandPerMixing(3000);
+    expect(useBoardStore.getState().sandPerMixing).toBe(3000);
+  });
+
+  it('addInformasi records a note with the newest first', () => {
+    useBoardStore.getState().addInformasi('Mesin A maintenance');
+    useBoardStore.getState().addInformasi('Ganti sand hopper');
+    const log = useBoardStore.getState().informasiLog;
+    expect(log.map((n) => n.text)).toEqual(['Ganti sand hopper', 'Mesin A maintenance']);
+  });
+
+  it('logPlanningSnapshot records a planning entry with the newest first', () => {
+    useBoardStore.getState().logPlanningSnapshot(
+      [{ productCode: '2TR', qty: 10, sandMeasTimeMin: 9.5 }],
+      'RED',
+      430,
+    );
+    const [snap] = useBoardStore.getState().planningHistory;
+    expect(snap.totalQty).toBe(10);
+    expect(snap.group).toBe('RED');
+    expect(snap.timeBeginMin).toBe(430);
+  });
+
+  it('addLineStop stores counterMeasure and category when given', () => {
+    useBoardStore.getState().addLineStop(430, 440, 'Sand jam', 'Bersihkan hopper', 'AV');
+    const stop = useBoardStore.getState().lineStops[0];
+    expect(stop.counterMeasure).toBe('Bersihkan hopper');
+    expect(stop.category).toBe('AV');
+  });
+
+  it('addLineStop defaults counterMeasure/category when omitted (legacy callers)', () => {
+    useBoardStore.getState().addLineStop(430, 440, 'Sand jam');
+    const stop = useBoardStore.getState().lineStops[0];
+    expect(stop.counterMeasure).toBe('');
+    expect(stop.category).toBe('AV');
+  });
+
+  it('updateLineStop preserves counterMeasure/category when only editing time/problem', () => {
+    useBoardStore.getState().addLineStop(430, 440, 'Sand jam', 'Bersihkan hopper', 'PE');
+    const id = useBoardStore.getState().lineStops[0].id;
+    useBoardStore.getState().updateLineStop(id, 430, 445, 'Sand jam parah');
+    const stop = useBoardStore.getState().lineStops[0];
+    expect(stop.counterMeasure).toBe('Bersihkan hopper');
+    expect(stop.category).toBe('PE');
+    expect(stop.endMin).toBe(445);
+  });
+
+  describe('applyPlanningTargets', () => {
+    it('grows a product already on the board, keeping a later untouched product\'s order', () => {
+      useBoardStore.getState().addLots([
+        { productCode: '2TR', count: 2 }, { productCode: 'CRANK', count: 2 },
+      ]);
+      useBoardStore.getState().applyPlanningTargets([{ productCode: '2TR', qty: 4 }]);
+      const lots = useBoardStore.getState().planLots;
+      expect(lots.map((l) => `${l.productCode}#${l.lotNo}`)).toEqual([
+        '2TR#1', '2TR#2', '2TR#3', '2TR#4', 'CRANK#1', 'CRANK#2',
+      ]);
+    });
+
+    it('shrinks a product by dropping its highest-numbered lots', () => {
+      useBoardStore.getState().addLots([{ productCode: '2TR', count: 4 }]);
+      useBoardStore.getState().applyPlanningTargets([{ productCode: '2TR', qty: 2 }]);
+      const lots = useBoardStore.getState().planLots;
+      expect(lots.map((l) => l.lotNo)).toEqual([1, 2]);
+    });
+
+    it('leaves an earlier untouched product\'s lot positions unchanged', () => {
+      useBoardStore.getState().addLots([
+        { productCode: '2TR', count: 2 }, { productCode: 'CRANK', count: 2 },
+      ]);
+      const before = useBoardStore.getState().planLots
+        .filter((l) => l.productCode === '2TR').map((l) => l.startMin);
+      useBoardStore.getState().applyPlanningTargets([{ productCode: 'CRANK', qty: 3 }]);
+      const after = useBoardStore.getState().planLots
+        .filter((l) => l.productCode === '2TR').map((l) => l.startMin);
+      expect(after).toEqual(before);
+    });
   });
 });

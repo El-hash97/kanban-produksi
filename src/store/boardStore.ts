@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-  DayType, FurnaceId, LineStop, LotRequest, PlanLot, Product, ProductCode, ShiftConfig,
+  DayType, FurnaceId, InformasiNote, LineStop, LineStopCategory, LotRequest, PlanLot,
+  PlanningEntry, PlanningSnapshot, Product, ProductCode, ShiftConfig, TeamGroup,
 } from '../domain/types';
 import {
   buildShiftConfig, DEFAULT_PRODUCTS, DEFAULT_SHIFT, ensureDandori, migrateShift,
@@ -9,7 +10,7 @@ import {
 import {
   applyLineStops, autoPlaceLots, effectiveShift, makeBreak, makeLineStop, renumberByProduct,
 } from '../lib/scheduling';
-import { todayDayType } from '../lib/time';
+import { nowMinForShift, todayDayType } from '../lib/time';
 
 interface BoardState {
   shiftConfig: ShiftConfig;
@@ -28,12 +29,21 @@ interface BoardState {
   // Auto-set from the real date on load (persist merge); overridable for
   // the running session via setActiveDay.
   activeDay: DayType;
+  planningHistory: PlanningSnapshot[];
+  informasiLog: InformasiNote[];
+  sandPerMixing: number;
   addLots: (requests: LotRequest[]) => void;
   removeLots: (productCode: ProductCode, count: number) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
   setLotsProduct: (lotIds: string[], productCode: ProductCode) => void;
-  addLineStop: (startMin: number, endMin: number, keterangan: string) => void;
-  updateLineStop: (id: string, startMin: number, endMin: number, keterangan: string) => void;
+  addLineStop: (
+    startMin: number, endMin: number, keterangan: string,
+    counterMeasure?: string, category?: LineStopCategory,
+  ) => void;
+  updateLineStop: (
+    id: string, startMin: number, endMin: number, keterangan: string,
+    counterMeasure?: string, category?: LineStopCategory,
+  ) => void;
   removeLineStop: (id: string) => void;
   addBreak: (day: DayType, label: string, startMin: number, endMin: number) => void;
   updateBreak: (id: string, startMin: number, endMin: number) => void;
@@ -41,6 +51,12 @@ interface BoardState {
   setProductionStart: (startMin: number) => void;
   setShiftNo: (shiftNo: number) => void;
   setActiveDay: (day: DayType) => void;
+  setPic: (pic: string) => void;
+  setGroup: (group: TeamGroup) => void;
+  setSandPerMixing: (n: number) => void;
+  addInformasi: (text: string) => void;
+  logPlanningSnapshot: (entries: PlanningEntry[], group: TeamGroup, timeBeginMin: number) => void;
+  applyPlanningTargets: (entries: { productCode: ProductCode; qty: number }[]) => void;
   setTappingFurnaceOverride: (tapId: string, furnaceId: FurnaceId) => void;
   resetBoard: () => void;
 }
@@ -49,6 +65,12 @@ function recount(planLots: PlanLot[]): LotRequest[] {
   const counts = new Map<ProductCode, number>();
   for (const l of planLots) counts.set(l.productCode, (counts.get(l.productCode) ?? 0) + 1);
   return [...counts.entries()].map(([productCode, count]) => ({ productCode, count }));
+}
+
+let uid = 0;
+function nextId(prefix: string): string {
+  uid += 1;
+  return `${prefix}-${Date.now().toString(36)}-${uid}`;
 }
 
 export const useBoardStore = create<BoardState>()(
@@ -61,6 +83,9 @@ export const useBoardStore = create<BoardState>()(
       lineStops: [],
       furnaceOverrides: {},
       activeDay: 'DAY',
+      planningHistory: [],
+      informasiLog: [],
+      sandPerMixing: 2700,
 
       addLots: (requests) => {
         const {
@@ -104,11 +129,11 @@ export const useBoardStore = create<BoardState>()(
         set({ planLots: renumberByProduct(updated) });
       },
 
-      addLineStop: (startMin, endMin, keterangan) => {
+      addLineStop: (startMin, endMin, keterangan, counterMeasure, category) => {
         const {
           shiftConfig, planLots, lineStops, activeDay,
         } = get();
-        const stop = makeLineStop(startMin, endMin, keterangan);
+        const stop = makeLineStop(startMin, endMin, keterangan, counterMeasure, category);
         const nextStops = [...lineStops, stop];
         set({
           lineStops: nextStops,
@@ -116,14 +141,23 @@ export const useBoardStore = create<BoardState>()(
         });
       },
 
-      updateLineStop: (id, startMin, endMin, keterangan) => {
+      // Omitted counterMeasure/category preserve the stop's current value, so
+      // the inline time/problem-only edit in LineStopPanel can't accidentally
+      // wipe a counter measure set via the Input Parameter modal.
+      updateLineStop: (id, startMin, endMin, keterangan, counterMeasure, category) => {
         const {
           shiftConfig, planLots, lineStops, activeDay,
         } = get();
         const nextStops = lineStops.map((s) => (
           s.id === id
             ? {
-              ...s, startMin, endMin, durationMin: Math.max(0, endMin - startMin), keterangan,
+              ...s,
+              startMin,
+              endMin,
+              durationMin: Math.max(0, endMin - startMin),
+              keterangan,
+              counterMeasure: counterMeasure ?? s.counterMeasure,
+              category: category ?? s.category,
             }
             : s
         ));
@@ -233,6 +267,76 @@ export const useBoardStore = create<BoardState>()(
           activeDay: day,
           planLots: applyLineStops(planLots, effectiveShift(shiftConfig, day), lineStops),
         });
+      },
+
+      // PIC and Group are per-shift settings, same persistence pattern as
+      // setProductionStart/addBreak: update shiftConfig and remember it in
+      // shiftPresets so it survives a shift switch and back.
+      setPic: (pic) => {
+        const { shiftConfig, shiftPresets } = get();
+        const nextShift = { ...shiftConfig, pic };
+        set({
+          shiftConfig: nextShift,
+          shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },
+        });
+      },
+
+      setGroup: (group) => {
+        const { shiftConfig, shiftPresets } = get();
+        const nextShift = { ...shiftConfig, group };
+        set({
+          shiftConfig: nextShift,
+          shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },
+        });
+      },
+
+      setSandPerMixing: (n) => set({ sandPerMixing: n }),
+
+      addInformasi: (text) => {
+        const { shiftConfig, informasiLog } = get();
+        const note = { id: nextId('info'), at: nowMinForShift(shiftConfig), text };
+        set({ informasiLog: [note, ...informasiLog] });
+      },
+
+      logPlanningSnapshot: (entries, group, timeBeginMin) => {
+        const { shiftConfig, sandPerMixing, planningHistory } = get();
+        const snapshot: PlanningSnapshot = {
+          id: nextId('plan'),
+          at: nowMinForShift(shiftConfig),
+          entries,
+          totalQty: entries.reduce((sum, e) => sum + e.qty, 0),
+          taktTimeSec: shiftConfig.tTimeSec,
+          timeBeginMin,
+          group,
+          sandPerMixing,
+        };
+        set({ planningHistory: [snapshot, ...planningHistory] });
+      },
+
+      // Reconciles current lot counts per product to `entries`' target qty in
+      // one pure recompute — the same placement engine addLots/removeLots
+      // already use, just fed an absolute target instead of a delta. Products
+      // not named in `entries` keep their current count. Existing products
+      // keep their board order (only their count changes); a product with no
+      // lots yet is appended at the end.
+      applyPlanningTargets: (entries) => {
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
+        const targetOf = new Map(entries.map((e) => [e.productCode, Math.max(0, e.qty)]));
+        const currentCounts = recount(planLots);
+        const requests: LotRequest[] = currentCounts.map((c) => ({
+          productCode: c.productCode,
+          count: targetOf.has(c.productCode) ? targetOf.get(c.productCode)! : c.count,
+        }));
+        for (const [productCode, qty] of targetOf) {
+          if (qty > 0 && !currentCounts.some((c) => c.productCode === productCode)) {
+            requests.push({ productCode, count: qty });
+          }
+        }
+        const eff = effectiveShift(shiftConfig, activeDay);
+        const placed = autoPlaceLots(requests.filter((r) => r.count > 0), eff);
+        set({ planLots: applyLineStops(placed, eff, lineStops) });
       },
 
       // Reassigns which furnace a specific tap (by its stable id) runs on,

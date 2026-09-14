@@ -29,10 +29,11 @@ describe('autoPlaceLots', () => {
       id: 'b1', type: 'WAKOM1' as const, label: 'W', day: 'DAY' as const, startMin: 424, endMin: 434,
     }];
     const lots = autoPlaceLots([{ productCode: '2TR', count: 3 }], shift(brk));
-    // first at 420-421; pitch-aligned slots 424,428,432 all overlap the
-    // 424-434 break, so resume at the next aligned slot, 436, then 440
-    // (never snap to the break's own end minute, 434).
-    expect(lots.map((l) => l.startMin)).toEqual([420, 436, 440]);
+    // lot1 ends 421, and 424 (the natural next pitch slot) is exactly the
+    // break's start — a full 3-column gap was already banked before hitting
+    // it, so resuming right at the break's own end (434) is correct here:
+    // gap-before(3) + gap-after(0) still sums to the standard 3.
+    expect(lots.map((l) => l.startMin)).toEqual([420, 434, 438]);
   });
 
   it('marks nothing as shifted on initial placement', () => {

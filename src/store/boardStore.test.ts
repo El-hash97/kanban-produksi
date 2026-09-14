@@ -34,12 +34,13 @@ describe('boardStore', () => {
 
   it('records a line stop and shifts affected lots', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
-    // stop 430–440 overlaps all three lots (430, 434, 438) -> they shift past
-    // it to the next pitch-aligned slot, 442 (not the stop's own end, 440)
+    // stop 430–440 overlaps all three lots (430, 434, 438); lot1's natural
+    // slot (430) is exactly the stop's own start (full gap already banked),
+    // so they resume right at the stop's end, 440.
     useBoardStore.getState().addLineStop(430, 440, 'F.Releasing LS Fault');
     const { planLots, lineStops } = useBoardStore.getState();
     expect(lineStops).toHaveLength(1);
-    expect(planLots.map((l) => l.startMin)).toEqual([442, 446, 450]);
+    expect(planLots.map((l) => l.startMin)).toEqual([440, 444, 448]);
   });
 
   it('removing a line stop restores the original schedule', () => {
@@ -78,12 +79,13 @@ describe('boardStore', () => {
 
   it('adding a break shifts lots scheduled during it', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
-    // lots land at 430, 434, 438; a new break 430-440 pushes all past it to
-    // the next pitch-aligned slot, 442 (not the break's own end, 440)
+    // lots land at 430, 434, 438; a new break 430-440 covers lot1's natural
+    // slot exactly at its own start (full gap already banked), so they
+    // resume right at the break's end, 440.
     useBoardStore.getState().addBreak('DAY', 'Wakom-3', 430, 440);
     const { shiftConfig, planLots } = useBoardStore.getState();
     expect(shiftConfig.breaks.some((b) => b.label === 'Wakom-3')).toBe(true);
-    expect(planLots.map((l) => l.startMin)).toEqual([442, 446, 450]);
+    expect(planLots.map((l) => l.startMin)).toEqual([440, 444, 448]);
   });
 
   it('removing a break restores the original schedule', () => {
@@ -162,9 +164,11 @@ describe('boardStore', () => {
     expect(updated.endMin).toBe(440);
 
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 1 }]);
-    // pitch-aligned slots 430,434,438 all still overlap the widened Dandori
-    // (420-440); first clear aligned slot is 442, not Dandori's own end, 440
-    expect(useBoardStore.getState().planLots[0].startMin).toBe(442);
+    // This is the very first lot, so its candidate (productionStartMin=430)
+    // already sits 10 minutes inside the widened Dandori (420-440, duration
+    // 20) with no earlier lot to have banked any gap — it resumes 20 minutes
+    // past that candidate, at 450.
+    expect(useBoardStore.getState().planLots[0].startMin).toBe(450);
   });
 
   it('setProductionStart moves where the first lot lands and reflows existing lots', () => {
@@ -180,9 +184,9 @@ describe('boardStore', () => {
   it('setProductionStart still respects Dandori if set earlier than Dandori ends', () => {
     useBoardStore.getState().setProductionStart(421); // Dandori runs 420-430
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 1 }]);
-    // pitch-aligned from 421: 421,425,429 all overlap Dandori; first clear
-    // aligned slot is 433, not Dandori's own end, 430
-    expect(useBoardStore.getState().planLots[0].startMin).toBe(433);
+    // First lot, candidate 421 sits 1 minute inside Dandori (duration 10)
+    // with no earlier lot to have banked any gap — resumes at 421+10=431.
+    expect(useBoardStore.getState().planLots[0].startMin).toBe(431);
   });
 
   it('repairs a legacy shift preset that is missing Dandori when switched to', () => {

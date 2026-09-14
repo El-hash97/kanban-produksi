@@ -23,14 +23,13 @@ describe('effectiveShift', () => {
   });
 
   it('drives autoPlaceLots so FRIDAY\'s longer break pushes lots differently', () => {
-    // A lot placed right at the break start on each day, pitch-aligned from
-    // productionStartMin=700. DAY break is 700-745 (not a multiple of the
-    // 4-min pitch from 700), so the first clear aligned slot is 748; FRIDAY's
-    // break 700-780 ends exactly on a pitch multiple, so resumes right at 780.
+    // The very first lot's candidate slot (700) is exactly each break's own
+    // start, so it resumes right at that break's own end minute in both
+    // cases (no earlier lot exists to have banked any gap beforehand).
     const near = { ...shift, productionStartMin: 700 };
     const dayStart = autoPlaceLots([{ productCode: '2TR', count: 1 }], effectiveShift(near, 'DAY'))[0].startMin;
     const friStart = autoPlaceLots([{ productCode: '2TR', count: 1 }], effectiveShift(near, 'FRIDAY'))[0].startMin;
-    expect(dayStart).toBe(748);
+    expect(dayStart).toBe(745);
     expect(friStart).toBe(780);
   });
 });

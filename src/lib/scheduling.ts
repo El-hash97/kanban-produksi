@@ -18,12 +18,13 @@ function makeId(prefix: string): string {
  * the full pitch (a slot up to (LOT_PITCH_MIN - LOT_DURATION_MIN) minutes
  * before a break still gets used instead of being skipped needlessly).
  *
- * On overlap, `pos` advances by exactly one LOT_PITCH_MIN cycle rather than
- * snapping to the block's end minute. This keeps every lot's startMin an
- * exact multiple of LOT_PITCH_MIN away from the shift's productionStartMin,
- * so the same 3-column pitch rhythm continues unbroken through and after a
- * break/line-stop, instead of resetting phase at the block's edge (which
- * used to land the very next lot with zero gap right at the block's end).
+ * On overlap, `pos` advances by exactly the overlapping block's own duration
+ * (`b.endMin - b.startMin`), not a fixed pitch cycle and not a snap to the
+ * block's absolute end. Whatever gap-before-the-block was already banked by
+ * normal pitch spacing (0-3 minutes) plus the gap-after-the-block always sum
+ * to exactly (LOT_PITCH_MIN - LOT_DURATION_MIN) — e.g. a 2-column gap before
+ * a break leaves a 1-column gap after it, and a 1-column gap before leaves 2
+ * after — instead of always landing with zero gap right at the block's edge.
  * Blocks may overlap each other; we loop until the position is stable.
  */
 function nextFreeStart(cursor: number, blocks: Range[]): number {
@@ -33,7 +34,7 @@ function nextFreeStart(cursor: number, blocks: Range[]): number {
     moved = false;
     for (const b of blocks) {
       if (rangesOverlap({ startMin: pos, endMin: pos + LOT_DURATION_MIN }, b)) {
-        pos += LOT_PITCH_MIN;
+        pos += b.endMin - b.startMin;
         moved = true;
       }
     }

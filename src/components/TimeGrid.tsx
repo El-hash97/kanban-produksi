@@ -13,13 +13,17 @@ function colorFor(products: Product[], code: string): string {
 }
 
 function LotBoxes({
-  lots, hour, products, row, selectable, onDragStart, onDragEnter, selectedIds,
+  lots, hour, products, row, selectable, onDragStart, onDragEnter, selectedIds, showCumulative,
 }: {
   lots: PlanLot[]; hour: number; products: Product[]; row: number;
   selectable?: boolean;
   onDragStart?: (index: number) => void;
   onDragEnter?: (index: number) => void;
   selectedIds?: Set<string>;
+  // Shows a small black-background badge above the lot number with this
+  // lot's overall position across every model combined (planLots is already
+  // in chronological order, so index+1 is exactly that count) — PLN only.
+  showCumulative?: boolean;
 }) {
   return (
     <>
@@ -30,18 +34,27 @@ function LotBoxes({
         return (
           <div
             key={lot.id}
-            className={`flex items-center justify-center text-[9px] font-bold text-black rounded-sm m-px overflow-hidden select-none ${selectable ? 'cursor-pointer hover:ring-2 hover:ring-white' : ''} ${selected ? 'ring-2 ring-yellow-300' : ''}`}
+            className={`flex flex-col rounded-sm m-px overflow-hidden select-none ${selectable ? 'cursor-pointer hover:ring-2 hover:ring-white' : ''} ${selected ? 'ring-2 ring-yellow-300' : ''}`}
             style={{
               gridColumn: `${cs.col} / span ${cs.span}`,
               gridRow: row,
-              backgroundColor: colorFor(products, lot.productCode),
               outline: lot.shifted ? '1px solid #f87171' : 'none',
             }}
             title={`${lot.productCode} Lot ${lot.lotNo} @ ${toHHmm(lot.startMin)}${selectable ? ' — klik atau drag beberapa lot untuk ubah model' : ''}`}
             onMouseDown={onDragStart ? (e) => { e.preventDefault(); onDragStart(index); } : undefined}
             onMouseEnter={onDragEnter ? () => onDragEnter(index) : undefined}
           >
-            {lot.lotNo}
+            {showCumulative && (
+              <div className="bg-black text-white text-[7px] leading-none text-center shrink-0 py-px">
+                {index + 1}
+              </div>
+            )}
+            <div
+              className="flex-1 flex items-center justify-center text-[9px] font-bold text-black"
+              style={{ backgroundColor: colorFor(products, lot.productCode) }}
+            >
+              {lot.lotNo}
+            </div>
           </div>
         );
       })}
@@ -159,7 +172,7 @@ export default function TimeGrid() {
             className="grid flex-1"
             style={{
               gridTemplateColumns: 'repeat(60, 1fr)',
-              gridTemplateRows: '18px 18px',
+              gridTemplateRows: '26px 18px',
               backgroundImage: [
                 'repeating-linear-gradient(to right, transparent, transparent calc(100%/60 - 2px), rgba(220,38,38,0.28) calc(100%/60))',
                 'repeating-linear-gradient(to right, transparent, transparent calc(100%/12 - 3px), rgba(220,38,38,0.55) calc(100%/12))',
@@ -175,6 +188,7 @@ export default function TimeGrid() {
               onDragStart={handleDragStart}
               onDragEnter={handleDragEnter}
               selectedIds={selectedIds}
+              showCumulative
             />
             <LotBoxes lots={actualLots} hour={hour} products={products} row={2} />
             <Overlays

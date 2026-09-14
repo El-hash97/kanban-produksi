@@ -13,7 +13,11 @@ import {
 } from '../lib/scheduling';
 import { nowMinForShift, todayDayType } from '../lib/time';
 
-interface BoardState {
+// The subset of BoardState that's plain data (serializes cleanly to JSON) —
+// what Zustand's `persist` middleware writes to localStorage, and what
+// useBoardSync pushes/pulls to the shared Neon-backed board. See
+// docs/superpowers/specs/2026-09-14-neon-live-sync-design.md.
+export interface PersistedBoardState {
   shiftConfig: ShiftConfig;
   // Each shift's own settings (currently just its breaks) are remembered
   // here by shiftNo, so switching shift 1 <-> shift 2 doesn't discard
@@ -33,6 +37,9 @@ interface BoardState {
   planningHistory: PlanningSnapshot[];
   informasiLog: InformasiNote[];
   sandPerMixing: number;
+}
+
+interface BoardState extends PersistedBoardState {
   addLots: (requests: LotRequest[]) => void;
   removeLots: (productCode: ProductCode, count: number) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
@@ -74,6 +81,19 @@ let uid = 0;
 function nextId(prefix: string): string {
   uid += 1;
   return `${prefix}-${Date.now().toString(36)}-${uid}`;
+}
+
+// Strips the action functions off the live store, leaving just the data
+// useBoardSync needs to push to (or compare against) the server.
+export function pickPersistedState(state: BoardState): PersistedBoardState {
+  const {
+    shiftConfig, shiftPresets, products, planLots, lineStops,
+    furnaceOverrides, activeDay, planningHistory, informasiLog, sandPerMixing,
+  } = state;
+  return {
+    shiftConfig, shiftPresets, products, planLots, lineStops,
+    furnaceOverrides, activeDay, planningHistory, informasiLog, sandPerMixing,
+  };
 }
 
 export const useBoardStore = create<BoardState>()(

@@ -16,8 +16,10 @@ describe('autoPlaceLots near a break', () => {
     }];
     const lots = autoPlaceLots([{ productCode: '2TR', count: 5 }], shift(brk));
     // Pitch is 4 min from 0: 0,4,8,12 all fit (each lot is only 1 min wide,
-    // so 12-13 does not touch the break at 14-19); only the slot at 16 would
-    // truly overlap, so the 5th lot resumes right after the break at 19.
-    expect(lots.map((l) => l.startMin)).toEqual([0, 4, 8, 12, 19]);
+    // so 12-13 does not touch the break at 14-19). The next aligned slot, 16,
+    // truly overlaps the break, so the 5th lot resumes at the *next* aligned
+    // slot, 20 — not snapped to the break's own end minute (19), so the pitch
+    // rhythm from productionStartMin never resets around a break.
+    expect(lots.map((l) => l.startMin)).toEqual([0, 4, 8, 12, 20]);
   });
 });

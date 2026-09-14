@@ -58,10 +58,11 @@ export function placeSequence(
   order: { productCode: ProductCode; lotNo: number }[],
   shift: ShiftConfig,
   blocks: Range[],
+  startCursor: number = shift.productionStartMin,
 ): PlanLot[] {
   const pitchMin = pitchSecFromTakt(shift.tTimeSec) / 60;
   const result: PlanLot[] = [];
-  let cursor = shift.productionStartMin;
+  let cursor = startCursor;
   for (const item of order) {
     cursor = nextFreeStart(cursor, blocks);
     result.push({
@@ -161,6 +162,37 @@ export function applyLineStops(
     id: planLots[i].id,
     shifted: lot.startMin !== planLots[i].startMin,
   }));
+}
+
+/**
+ * Re-place lots from `fromIndex` onward, starting the first of them at
+ * `overrideStartMin` instead of wherever it currently sits — used when the
+ * operator manually drags a plan lot to a new time (line-stop-without-a-
+ * record, or a manual correction). Lots before `fromIndex` are untouched;
+ * lots from `fromIndex` on cascade with the normal pitch/break/line-stop
+ * rules, same as applyLineStops, just anchored at a custom cursor.
+ */
+export function reflowFrom(
+  planLots: PlanLot[],
+  shift: ShiftConfig,
+  lineStops: LineStop[],
+  fromIndex: number,
+  overrideStartMin: number,
+): PlanLot[] {
+  const before = planLots.slice(0, fromIndex);
+  const toReplace = planLots.slice(fromIndex);
+  const order = toReplace.map((l) => ({ productCode: l.productCode, lotNo: l.lotNo }));
+  const blocks: Range[] = [
+    ...shift.breaks.map((b) => ({ startMin: b.startMin, endMin: b.endMin })),
+    ...lineStops.map((s) => ({ startMin: s.startMin, endMin: s.endMin })),
+  ];
+  const replaced = placeSequence(order, shift, blocks, overrideStartMin);
+  const after = replaced.map((lot, i) => ({
+    ...lot,
+    id: toReplace[i].id,
+    shifted: lot.startMin !== toReplace[i].startMin,
+  }));
+  return [...before, ...after];
 }
 
 export type { LineStop };

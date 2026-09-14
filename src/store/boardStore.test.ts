@@ -51,6 +51,15 @@ describe('boardStore', () => {
     expect(useBoardStore.getState().planLots.map((l) => l.startMin)).toEqual([430, 434, 438]);
   });
 
+  it('dragging a lot to a new start time leaves earlier lots alone and cascades the rest on the same pitch', () => {
+    useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
+    const [first, second] = useBoardStore.getState().planLots;
+    useBoardStore.getState().setLotStart(second.id, 460);
+    const lots = useBoardStore.getState().planLots;
+    expect(lots.map((l) => l.id)).toEqual([first.id, second.id, expect.any(String)]);
+    expect(lots.map((l) => l.startMin)).toEqual([430, 460, 464]);
+  });
+
   it('retagging a lot changes its model and renumbers lots per product', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
     const [first, second, third] = useBoardStore.getState().planLots;

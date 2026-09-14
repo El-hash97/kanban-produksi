@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { deriveActual, effectiveShift } from '../lib/scheduling';
 import { useNowMin } from '../hooks/useNowMin';
 import { colSpan, hourRange } from '../lib/grid';
 import { toHHmm } from '../lib/time';
+import { LOT_DURATION_MIN } from '../domain/defaults';
 import type { Break, LineStop, PlanLot, Product } from '../domain/types';
 
 const MINUTE_HEADERS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
@@ -14,16 +15,20 @@ function colorFor(products: Product[], code: string): string {
 
 function LotBoxes({
   lots, hour, products, row, selectable, onDragStart, onDragEnter, selectedIds, showCumulative,
+  movingId,
 }: {
   lots: PlanLot[]; hour: number; products: Product[]; row: number;
   selectable?: boolean;
-  onDragStart?: (index: number) => void;
+  onDragStart?: (index: number, e: ReactMouseEvent) => void;
   onDragEnter?: (index: number) => void;
   selectedIds?: Set<string>;
   // Shows a small black-background badge above the lot number with this
   // lot's overall position across every model combined (planLots is already
   // in chronological order, so index+1 is exactly that count) — PLN only.
   showCumulative?: boolean;
+  // The lot currently being Alt-dragged to a new time — dimmed at its old
+  // spot while a preview shows where it will land.
+  movingId?: string;
 }) {
   return (
     <>
@@ -34,14 +39,14 @@ function LotBoxes({
         return (
           <div
             key={lot.id}
-            className={`flex flex-col rounded-sm m-px overflow-hidden select-none ${selectable ? 'cursor-pointer hover:ring-2 hover:ring-white' : ''} ${selected ? 'ring-2 ring-yellow-300' : ''}`}
+            className={`flex flex-col rounded-sm m-px overflow-hidden select-none ${selectable ? 'cursor-pointer hover:ring-2 hover:ring-white' : ''} ${selected ? 'ring-2 ring-yellow-300' : ''} ${movingId === lot.id ? 'opacity-30' : ''}`}
             style={{
               gridColumn: `${cs.col} / span ${cs.span}`,
               gridRow: row,
               outline: lot.shifted ? '1px solid #f87171' : 'none',
             }}
-            title={`${lot.productCode} Lot ${lot.lotNo} @ ${toHHmm(lot.startMin)}${selectable ? ' — klik atau drag beberapa lot untuk ubah model' : ''}`}
-            onMouseDown={onDragStart ? (e) => { e.preventDefault(); onDragStart(index); } : undefined}
+            title={`${lot.productCode} Lot ${lot.lotNo} @ ${toHHmm(lot.startMin)}${selectable ? ' — klik/drag beberapa lot untuk ubah model, Alt+drag geser waktu' : ''}`}
+            onMouseDown={onDragStart ? (e) => { e.preventDefault(); onDragStart(index, e); } : undefined}
             onMouseEnter={onDragEnter ? () => onDragEnter(index) : undefined}
           >
             {showCumulative && (
@@ -105,6 +110,7 @@ export default function TimeGrid() {
   const products = useBoardStore((s) => s.products);
   const activeDay = useBoardStore((s) => s.activeDay);
   const setLotsProduct = useBoardStore((s) => s.setLotsProduct);
+  const setLotStart = useBoardStore((s) => s.setLotStart);
   const nowMin = useNowMin(shiftConfig);
   const actualLots = useMemo(() => deriveActual(planLots, nowMin), [planLots, nowMin]);
   const hours = hourRange(shiftConfig);
@@ -112,6 +118,9 @@ export default function TimeGrid() {
   const [dragAnchor, setDragAnchor] = useState<number | null>(null);
   const [dragCurrent, setDragCurrent] = useState<number | null>(null);
   const isDragging = dragAnchor !== null;
+  // Alt+drag: reposition a single lot in time instead of selecting a range
+  // for model retagging. `targetMin` tracks the live preview position.
+  const [moveState, setMoveState] = useState<{ index: number; targetMin: number } | null>(null);
 
   const selectedIds = useMemo(() => {
     if (dragAnchor === null || dragCurrent === null) return undefined;
@@ -120,7 +129,11 @@ export default function TimeGrid() {
     return new Set(planLots.slice(lo, hi + 1).map((l) => l.id));
   }, [dragAnchor, dragCurrent, planLots]);
 
-  const handleDragStart = (index: number) => {
+  const handleDragStart = (index: number, e: ReactMouseEvent) => {
+    if (e.altKey) {
+      setMoveState({ index, targetMin: planLots[index].startMin });
+      return;
+    }
     setDragAnchor(index);
     setDragCurrent(index);
   };
@@ -147,6 +160,38 @@ export default function TimeGrid() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDragging, dragAnchor, dragCurrent, planLots]);
 
+  // Alt+drag reposition: follow the mouse to compute the target minute (via
+  // the hour cell under the cursor), then commit on mouseup.
+  useEffect(() => {
+    if (!moveState) return undefined;
+    const targetMinFromEvent = (e: MouseEvent): number | null => {
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-hour]');
+      if (!el) return null;
+      const hour = Number(el.dataset.hour);
+      const rect = el.getBoundingClientRect();
+      const frac = (e.clientX - rect.left) / rect.width;
+      const minuteOfHour = Math.min(59, Math.max(0, Math.round(frac * 60)));
+      return hour + minuteOfHour;
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      const min = targetMinFromEvent(e);
+      if (min !== null) setMoveState((s) => (s ? { ...s, targetMin: min } : s));
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      const min = targetMinFromEvent(e) ?? moveState.targetMin;
+      const lot = planLots[moveState.index];
+      if (lot && min !== lot.startMin) setLotStart(lot.id, min);
+      setMoveState(null);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moveState, planLots]);
+
   return (
     <div className="border-2 border-red-600/70 text-white relative">
       {/* minute header */}
@@ -169,6 +214,7 @@ export default function TimeGrid() {
             <div className="px-1 text-yellow-400 border-t border-red-600/30">ACT</div>
           </div>
           <div
+            data-hour={hour}
             className="grid flex-1"
             style={{
               gridTemplateColumns: 'repeat(60, 1fr)',
@@ -189,6 +235,7 @@ export default function TimeGrid() {
               onDragEnter={handleDragEnter}
               selectedIds={selectedIds}
               showCumulative
+              movingId={moveState ? planLots[moveState.index]?.id : undefined}
             />
             <LotBoxes lots={actualLots} hour={hour} products={products} row={2} />
             <Overlays
@@ -196,6 +243,16 @@ export default function TimeGrid() {
               lineStops={lineStops}
               hour={hour}
             />
+            {moveState && (() => {
+              const cs = colSpan(moveState.targetMin, moveState.targetMin + LOT_DURATION_MIN, hour);
+              if (!cs) return null;
+              return (
+                <div
+                  className="pointer-events-none rounded-sm m-px border-2 border-dashed border-yellow-300 bg-yellow-300/20"
+                  style={{ gridColumn: `${cs.col} / span ${cs.span}`, gridRow: 1 }}
+                />
+              );
+            })()}
           </div>
         </div>
       ))}

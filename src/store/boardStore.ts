@@ -8,7 +8,8 @@ import {
   buildShiftConfig, DEFAULT_PRODUCTS, DEFAULT_SHIFT, ensureDandori, migrateShift,
 } from '../domain/defaults';
 import {
-  applyLineStops, autoPlaceLots, effectiveShift, makeBreak, makeLineStop, renumberByProduct,
+  applyLineStops, autoPlaceLots, effectiveShift, makeBreak, makeLineStop, reflowFrom,
+  renumberByProduct,
 } from '../lib/scheduling';
 import { nowMinForShift, todayDayType } from '../lib/time';
 
@@ -36,6 +37,7 @@ interface BoardState {
   removeLots: (productCode: ProductCode, count: number) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
   setLotsProduct: (lotIds: string[], productCode: ProductCode) => void;
+  setLotStart: (lotId: string, newStartMin: number) => void;
   addLineStop: (
     startMin: number, endMin: number, keterangan: string,
     counterMeasure?: string, category?: LineStopCategory,
@@ -128,6 +130,22 @@ export const useBoardStore = create<BoardState>()(
         const idSet = new Set(lotIds);
         const updated = planLots.map((l) => (idSet.has(l.id) ? { ...l, productCode } : l));
         set({ planLots: renumberByProduct(updated) });
+      },
+
+      // Manual drag-to-reposition on the grid: used when a real-world delay
+      // isn't worth a formal LineStop record, or the auto schedule just needs
+      // a small nudge. Only the dragged lot and everything after it reflow
+      // (from its new time, cascading with the standard pitch/break/line-stop
+      // rules) — lots before it are untouched.
+      setLotStart: (lotId, newStartMin) => {
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
+        const index = planLots.findIndex((l) => l.id === lotId);
+        if (index === -1) return;
+        set({
+          planLots: reflowFrom(planLots, effectiveShift(shiftConfig, activeDay), lineStops, index, newStartMin),
+        });
       },
 
       addLineStop: (startMin, endMin, keterangan, counterMeasure, category) => {

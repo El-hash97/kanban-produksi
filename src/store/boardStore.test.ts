@@ -171,6 +171,16 @@ describe('boardStore', () => {
     expect(useBoardStore.getState().planLots[0].startMin).toBe(450);
   });
 
+  it('setTaktTime changes the lot pitch and reflows existing lots', () => {
+    useBoardStore.getState().addLots([{ productCode: '2TR', count: 2 }]);
+    expect(useBoardStore.getState().planLots.map((l) => l.startMin)).toEqual([430, 434]);
+
+    // 60s takt -> 60*5=300s=5min pitch (was 48*5=240s=4min)
+    useBoardStore.getState().setTaktTime(60);
+    expect(useBoardStore.getState().shiftConfig.tTimeSec).toBe(60);
+    expect(useBoardStore.getState().planLots.map((l) => l.startMin)).toEqual([430, 435]);
+  });
+
   it('setProductionStart moves where the first lot lands and reflows existing lots', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 2 }]);
     expect(useBoardStore.getState().planLots.map((l) => l.startMin)).toEqual([430, 434]);

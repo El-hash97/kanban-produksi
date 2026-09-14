@@ -6,10 +6,15 @@ const h = (hh: number, mm = 0) => hh * 60 + mm;
 
 export const SHIFT_LENGTH_MIN = h(12);
 
-/** Fixed spacing between one lot's start and the next when generating lots
- * — 240s (4min), independent of T.TIME (tTimeSec, a separate reference
- * figure shown on the board header). */
-export const LOT_PITCH_SEC = 240;
+/** Spacing between one lot's start and the next when generating lots is
+ * derived from the shift's own Takt Time (tTimeSec, editable via Input
+ * Planning): pitchSec = tTimeSec * TAKT_TO_PITCH_MULTIPLIER. At the default
+ * 48s takt time this gives 240s (4min), matching the board's original fixed
+ * spacing. */
+export const TAKT_TO_PITCH_MULTIPLIER = 5;
+export function pitchSecFromTakt(tTimeSec: number): number {
+  return tTimeSec * TAKT_TO_PITCH_MULTIPLIER;
+}
 export const LOT_DURATION_MIN = 1;
 
 /** Break timings expressed as offsets from the shift's own start, so the

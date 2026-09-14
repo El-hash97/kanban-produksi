@@ -1,10 +1,8 @@
 import type {
   Break, DayType, LineStop, LineStopCategory, LotRequest, PlanLot, ProductCode, Range, ShiftConfig,
 } from '../domain/types';
-import { LOT_PITCH_SEC, LOT_DURATION_MIN } from '../domain/defaults';
+import { pitchSecFromTakt, LOT_DURATION_MIN } from '../domain/defaults';
 import { rangesOverlap } from './time';
-
-const LOT_PITCH_MIN = LOT_PITCH_SEC / 60;
 
 let idCounter = 0;
 function makeId(prefix: string): string {
@@ -15,17 +13,20 @@ function makeId(prefix: string): string {
 /**
  * Advance `cursor` forward until a LOT_DURATION_MIN slot starting there
  * overlaps no block — checked against the lot's actual occupied width, not
- * the full pitch (a slot up to (LOT_PITCH_MIN - LOT_DURATION_MIN) minutes
- * before a break still gets used instead of being skipped needlessly).
+ * the full pitch (a slot up to (pitch - LOT_DURATION_MIN) minutes before a
+ * break still gets used instead of being skipped needlessly).
  *
  * On overlap, `pos` advances by exactly the overlapping block's own duration
  * (`b.endMin - b.startMin`), not a fixed pitch cycle and not a snap to the
  * block's absolute end. Whatever gap-before-the-block was already banked by
- * normal pitch spacing (0-3 minutes) plus the gap-after-the-block always sum
- * to exactly (LOT_PITCH_MIN - LOT_DURATION_MIN) — e.g. a 2-column gap before
- * a break leaves a 1-column gap after it, and a 1-column gap before leaves 2
- * after — instead of always landing with zero gap right at the block's edge.
- * Blocks may overlap each other; we loop until the position is stable.
+ * normal pitch spacing plus the gap-after-the-block always sum to exactly
+ * (pitch - LOT_DURATION_MIN) — e.g. a 2-column gap before a break leaves a
+ * 1-column gap after it, and a 1-column gap before leaves 2 after — instead
+ * of always landing with zero gap right at the block's edge. This math holds
+ * regardless of what the pitch itself currently is (see placeSequence, which
+ * derives it from the shift's Takt Time), since this function never
+ * references the pitch directly. Blocks may overlap each other; we loop
+ * until the position is stable.
  */
 function nextFreeStart(cursor: number, blocks: Range[]): number {
   let pos = cursor;
@@ -43,19 +44,22 @@ function nextFreeStart(cursor: number, blocks: Range[]): number {
 }
 
 /**
- * Place an ordered list of lots on a fixed LOT_PITCH_MIN (240s = 4min) pitch
- * from the shift's configured production start time (shift.productionStartMin,
- * not necessarily shift.startMin), stepping over `blocks` (breaks + line
- * stops) — so it still pushes past Dandori if that runs later than the
- * configured start. Each lot occupies only LOT_DURATION_MIN of that pitch,
- * leaving a gap before the next lot. Order is preserved; lots that spill past
- * shift end are still returned (never dropped).
+ * Place an ordered list of lots on a pitch derived from the shift's own Takt
+ * Time (pitchSecFromTakt(shift.tTimeSec), 240s/4min at the default 48s takt),
+ * starting from the shift's configured production start time
+ * (shift.productionStartMin, not necessarily shift.startMin), stepping over
+ * `blocks` (breaks + line stops) — so it still pushes past Dandori if that
+ * runs later than the configured start. Each lot occupies only
+ * LOT_DURATION_MIN of that pitch, leaving a gap before the next lot. Order is
+ * preserved; lots that spill past shift end are still returned (never
+ * dropped).
  */
 export function placeSequence(
   order: { productCode: ProductCode; lotNo: number }[],
   shift: ShiftConfig,
   blocks: Range[],
 ): PlanLot[] {
+  const pitchMin = pitchSecFromTakt(shift.tTimeSec) / 60;
   const result: PlanLot[] = [];
   let cursor = shift.productionStartMin;
   for (const item of order) {
@@ -68,7 +72,7 @@ export function placeSequence(
       endMin: cursor + LOT_DURATION_MIN,
       shifted: false,
     });
-    cursor += LOT_PITCH_MIN;
+    cursor += pitchMin;
   }
   return result;
 }

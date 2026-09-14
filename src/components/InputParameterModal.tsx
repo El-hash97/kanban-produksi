@@ -75,6 +75,7 @@ function InputPlanningTab() {
   const setProductionStart = useBoardStore((s) => s.setProductionStart);
   const setGroup = useBoardStore((s) => s.setGroup);
   const setSandPerMixing = useBoardStore((s) => s.setSandPerMixing);
+  const setTaktTime = useBoardStore((s) => s.setTaktTime);
   const logPlanningSnapshot = useBoardStore((s) => s.logPlanningSnapshot);
 
   const [qty, setQty] = useState<Record<ProductCode, number>>(ZERO_QTY);
@@ -84,6 +85,7 @@ function InputPlanningTab() {
   const [timeBegin, setTimeBegin] = useState(shiftConfig.productionStartMin);
   const [group, setGroupLocal] = useState<TeamGroup>(shiftConfig.group);
   const [sandQty, setSandQty] = useState(sandPerMixing);
+  const [taktTime, setTaktTimeLocal] = useState(shiftConfig.tTimeSec);
 
   const total = Object.values(qty).reduce((a, b) => a + b, 0);
 
@@ -95,6 +97,7 @@ function InputPlanningTab() {
     setGroup(group);
     setProductionStart(timeBegin);
     setSandPerMixing(sandQty);
+    setTaktTime(taktTime);
     addLots(entries.map((e) => ({ productCode: e.productCode, count: e.qty })));
     logPlanningSnapshot(entries, group, timeBegin);
     setQty(ZERO_QTY);
@@ -140,7 +143,14 @@ function InputPlanningTab() {
       </table>
       <div className="flex flex-wrap items-center gap-3">
         <span>TOTAL: <b>{total}</b></span>
-        <span>TAKT TIME: <b>{shiftConfig.tTimeSec}</b></span>
+        <span>TAKT TIME</span>
+        <input
+          type="number"
+          min={1}
+          className="bg-black border border-cyan-500 w-16 px-1"
+          value={taktTime}
+          onChange={(e) => setTaktTimeLocal(Math.max(1, Number(e.target.value)))}
+        />
         <span>TIME BEGIN</span>
         <TimeSelect value={timeBegin} onChange={setTimeBegin} shift={shiftConfig} />
         <span>GROUP</span>

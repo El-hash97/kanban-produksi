@@ -40,4 +40,10 @@ describe('autoPlaceLots', () => {
     const lots = autoPlaceLots([{ productCode: 'KAI', count: 2 }], shift());
     expect(lots.every((l) => l.shifted === false)).toBe(true);
   });
+
+  it('derives the pitch from the shift\'s own takt time, not a fixed value', () => {
+    const slow = { ...shift(), tTimeSec: 60 }; // 60*5=300s=5min pitch
+    const lots = autoPlaceLots([{ productCode: '2TR', count: 3 }], slow);
+    expect(lots.map((l) => l.startMin)).toEqual([420, 425, 430]);
+  });
 });

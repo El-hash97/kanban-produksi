@@ -1,16 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_SHIFT, DEFAULT_PRODUCTS, DEFAULT_FURNACES, buildShiftConfig, ensureDandori, migrateShift, LOT_PITCH_SEC, LOT_DURATION_MIN,
+  DEFAULT_SHIFT, DEFAULT_PRODUCTS, DEFAULT_FURNACES, buildShiftConfig, ensureDandori, migrateShift,
+  pitchSecFromTakt, TAKT_TO_PITCH_MULTIPLIER, LOT_DURATION_MIN,
 } from './defaults';
 import type { ShiftConfig } from './types';
 
 describe('defaults', () => {
-  it('default shift takt time is 48 seconds (a separate reference figure)', () => {
+  it('default shift takt time is 48 seconds, editable via Input Planning', () => {
     expect(DEFAULT_SHIFT.tTimeSec).toBe(48);
   });
 
-  it('lot generation pitch is a fixed 240 seconds (4 minutes)', () => {
-    expect(LOT_PITCH_SEC).toBe(240);
+  it('lot generation pitch is derived from takt time (x5), 240 seconds at the default 48s takt', () => {
+    expect(TAKT_TO_PITCH_MULTIPLIER).toBe(5);
+    expect(pitchSecFromTakt(48)).toBe(240);
+    expect(pitchSecFromTakt(60)).toBe(300);
   });
 
   it('a lot occupies 1 minute of that pitch', () => {

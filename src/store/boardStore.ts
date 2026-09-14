@@ -49,6 +49,7 @@ interface BoardState {
   updateBreak: (id: string, startMin: number, endMin: number) => void;
   removeBreak: (id: string) => void;
   setProductionStart: (startMin: number) => void;
+  setTaktTime: (tTimeSec: number) => void;
   setShiftNo: (shiftNo: number) => void;
   setActiveDay: (day: DayType) => void;
   setPic: (pic: string) => void;
@@ -233,6 +234,21 @@ export const useBoardStore = create<BoardState>()(
           shiftConfig, planLots, lineStops, shiftPresets, activeDay,
         } = get();
         const nextShift = { ...shiftConfig, productionStartMin: startMin };
+        set({
+          shiftConfig: nextShift,
+          shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },
+          planLots: applyLineStops(planLots, effectiveShift(nextShift, activeDay), lineStops),
+        });
+      },
+
+      // Takt Time (editable via Input Planning) drives the lot pitch —
+      // pitchSecFromTakt(tTimeSec) in scheduling.ts — so existing lots reflow
+      // immediately, same as productionStartMin/breaks.
+      setTaktTime: (tTimeSec) => {
+        const {
+          shiftConfig, planLots, lineStops, shiftPresets, activeDay,
+        } = get();
+        const nextShift = { ...shiftConfig, tTimeSec };
         set({
           shiftConfig: nextShift,
           shiftPresets: { ...shiftPresets, [nextShift.shiftNo]: nextShift },

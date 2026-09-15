@@ -8,6 +8,7 @@ import InputParameterModal from './components/InputParameterModal';
 import UpdatePlanningModal from './components/UpdatePlanningModal';
 import TappingPanel from './components/TappingPanel';
 import { useBoardStore } from './store/boardStore';
+import { useBoardSync } from './hooks/useBoardSync';
 
 const TABS = [
   { key: 'linestop', label: 'INFORMASI LINE STOP' },
@@ -18,6 +19,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 export default function App() {
+  useBoardSync();
   const [tab, setTab] = useState<TabKey>('linestop');
   const [showSettings, setShowSettings] = useState(false);
   const [showInputParameter, setShowInputParameter] = useState(false);

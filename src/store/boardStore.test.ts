@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useBoardStore } from './boardStore';
+import { useBoardStore, pickPersistedState } from './boardStore';
 import { DEFAULT_PRODUCTS, DEFAULT_SHIFT, buildShiftConfig } from '../domain/defaults';
 
 // Full state reset for test isolation. resetBoard() itself intentionally
@@ -383,5 +383,16 @@ describe('boardStore', () => {
         .filter((l) => l.productCode === '2TR').map((l) => l.startMin);
       expect(after).toEqual(before);
     });
+  });
+});
+
+describe('pickPersistedState', () => {
+  it('returns only the persisted data fields, no actions', () => {
+    const persisted = pickPersistedState(useBoardStore.getState());
+    expect(Object.keys(persisted).sort()).toEqual([
+      'activeDay', 'furnaceOverrides', 'informasiLog', 'lineStops',
+      'planLots', 'planningHistory', 'products', 'sandPerMixing',
+      'shiftConfig', 'shiftPresets',
+    ]);
   });
 });

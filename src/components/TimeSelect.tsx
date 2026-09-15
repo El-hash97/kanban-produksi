@@ -1,6 +1,8 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useEffect, useRef, useState, type PointerEvent as ReactPointerEvent,
+} from 'react';
 import type { ShiftConfig } from '../domain/types';
-import { toHHmm, toShiftMin } from '../lib/time';
+import { parseFlexibleTime, toHHmm, toShiftMin } from '../lib/time';
 import {
   CENTER, HOUR_OUTER_R, HOUR_INNER_R, MINUTE_R,
   pointFor, hourFromPoint, minuteFromPoint, hourHandPoint, minuteHandPoint,
@@ -214,27 +216,92 @@ function TimePickerPopup({
   );
 }
 
+function ClockIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+/** Digits and a colon only, capped at "HH:MM" length — everything else a
+ * user might paste/type is dropped rather than rejecting the keystroke. */
+function sanitizeTimeChars(raw: string): string {
+  return raw.replace(/[^\d:]/g, '').slice(0, 5);
+}
+
 /**
- * Custom 24-hour clock-face picker — never falls back to the native
- * <input type="time">, whose AM/PM-vs-24h display depends on the browser's
- * locale. toHHmm always renders a plain 00:00-23:59 reading; toShiftMin folds
- * it onto the active shift's own timeline (so e.g. 02:00 on an overnight
- * shift 2 lands after 24:00, not before it).
+ * Time input with two ways in: type "HH:MM" (or just digits — see
+ * parseFlexibleTime) directly, or open the 24-hour clock-face dial. Neither
+ * path ever falls back to the native <input type="time">, whose AM/PM-vs-24h
+ * display depends on the browser's locale. toHHmm always renders a plain
+ * 00:00-23:59 reading; toShiftMin folds it onto the active shift's own
+ * timeline (so e.g. 02:00 on an overnight shift 2 lands after 24:00, not
+ * before it).
  */
 export default function TimeSelect({ value, onChange, shift }: Props) {
   const [open, setOpen] = useState(false);
+  const [text, setText] = useState(() => toHHmm(value));
   const clock = ((value % 1440) + 1440) % 1440;
   const currentHour = Math.floor(clock / 60);
   const currentMinute = clock % 60;
 
+  // Resyncs after our own commit (below) or after the dial popup confirms —
+  // never fights the user mid-keystroke, since `value` only changes once
+  // something actually commits.
+  useEffect(() => {
+    setText(toHHmm(value));
+  }, [value]);
+
+  const commit = () => {
+    const parsed = parseFlexibleTime(text);
+    if (parsed === null) {
+      setText(toHHmm(value));
+      return;
+    }
+    onChange(toShiftMin(shift, parsed));
+    // Normalize the display (e.g. "930" -> "09:30") right away rather than
+    // waiting on the value-prop effect, which won't fire if the parsed
+    // clock reading happens to match what was already there.
+    setText(toHHmm(parsed));
+  };
+
   return (
-    <>
+    <span className="inline-flex items-center gap-0.5">
+      <input
+        type="text"
+        inputMode="numeric"
+        className="bg-black border border-cyan-500 text-white text-xs px-1 w-14"
+        value={text}
+        onChange={(e) => setText(sanitizeTimeChars(e.target.value))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            setText(toHHmm(value));
+            e.currentTarget.blur();
+          }
+        }}
+      />
       <button
         type="button"
-        className="bg-black border border-cyan-500 text-white text-xs px-1"
+        className="bg-black border border-cyan-500 text-cyan-300 hover:text-white px-0.5 py-[3px]"
+        title="Pilih dari jam melingkar"
         onClick={() => setOpen(true)}
       >
-        {toHHmm(value)}
+        <ClockIcon />
       </button>
       {open && (
         <TimePickerPopup
@@ -247,6 +314,6 @@ export default function TimeSelect({ value, onChange, shift }: Props) {
           }}
         />
       )}
-    </>
+    </span>
   );
 }

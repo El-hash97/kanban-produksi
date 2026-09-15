@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   toMinOfDay, toHHmm, hourStart, rangesOverlap, nowMinOfDay, nowMinForShift, toShiftMin, todayDayType,
+  parseFlexibleTime,
 } from './time';
 import type { ShiftConfig } from '../domain/types';
 
@@ -62,6 +63,34 @@ describe('time', () => {
 
     it('toShiftMin is a no-op for a same-day shift', () => {
       expect(toShiftMin(dayShift, toMinOfDay('08:45'))).toBe(525);
+    });
+  });
+
+  describe('parseFlexibleTime', () => {
+    it('parses HH:MM and H:MM', () => {
+      expect(parseFlexibleTime('14:30')).toBe(870);
+      expect(parseFlexibleTime('9:5')).toBe(545);
+      expect(parseFlexibleTime('07:00')).toBe(420);
+    });
+
+    it('parses bare digits typed without a colon', () => {
+      expect(parseFlexibleTime('1430')).toBe(870); // HHMM
+      expect(parseFlexibleTime('930')).toBe(570); // HMM -> 09:30
+      expect(parseFlexibleTime('14')).toBe(840); // HH -> 14:00
+      expect(parseFlexibleTime('9')).toBe(540); // H -> 09:00
+    });
+
+    it('tolerates surrounding whitespace', () => {
+      expect(parseFlexibleTime('  08:45 ')).toBe(525);
+    });
+
+    it('rejects out-of-range or malformed input', () => {
+      expect(parseFlexibleTime('24:00')).toBeNull();
+      expect(parseFlexibleTime('12:60')).toBeNull();
+      expect(parseFlexibleTime('abc')).toBeNull();
+      expect(parseFlexibleTime('')).toBeNull();
+      expect(parseFlexibleTime('12:3:4')).toBeNull();
+      expect(parseFlexibleTime('99999')).toBeNull();
     });
   });
 

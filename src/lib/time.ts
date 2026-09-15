@@ -6,6 +6,36 @@ export function toMinOfDay(hhmm: string): number {
   return h * 60 + m;
 }
 
+/**
+ * Parses free-typed clock input for the manual-entry alternative to the
+ * clock-face picker (TimeSelect). Accepts "HH:MM", "H:MM", bare digits like
+ * "1430"/"930"/"14" (no colon needed on a numeric keypad), tolerates stray
+ * whitespace, and returns null for anything that isn't a valid 00:00-23:59
+ * reading rather than guessing.
+ */
+export function parseFlexibleTime(raw: string): number | null {
+  const cleaned = raw.trim();
+  let h: number;
+  let m: number;
+  if (cleaned.includes(':')) {
+    const parts = cleaned.split(':');
+    if (parts.length !== 2 || !/^\d{1,2}$/.test(parts[0]) || !/^\d{1,2}$/.test(parts[1])) return null;
+    h = Number(parts[0]);
+    m = Number(parts[1]);
+  } else if (/^\d{3,4}$/.test(cleaned)) {
+    const digits = cleaned.padStart(4, '0');
+    h = Number(digits.slice(0, 2));
+    m = Number(digits.slice(2));
+  } else if (/^\d{1,2}$/.test(cleaned)) {
+    h = Number(cleaned);
+    m = 0;
+  } else {
+    return null;
+  }
+  if (h > 23 || m > 59) return null;
+  return h * 60 + m;
+}
+
 export function toHHmm(min: number): string {
   const clamped = ((min % 1440) + 1440) % 1440;
   const h = Math.floor(clamped / 60);

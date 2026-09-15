@@ -36,6 +36,7 @@ interface BoardState {
   addLots: (requests: LotRequest[]) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
   setLotsProduct: (lotIds: string[], productCode: ProductCode) => void;
+  removeLotsByIds: (lotIds: string[]) => void;
   setLotStart: (lotId: string, newStartMin: number) => void;
   addLineStop: (
     startMin: number, endMin: number, keterangan: string,
@@ -111,6 +112,17 @@ export const useBoardStore = create<BoardState>()(
         const idSet = new Set(lotIds);
         const updated = planLots.map((l) => (idSet.has(l.id) ? { ...l, productCode } : l));
         set({ planLots: renumberByProduct(updated) });
+      },
+
+      // Drop a drag-selected block of lots from the grid (Backspace/Delete on
+      // the model picker), same selection mechanism as setLotsProduct.
+      removeLotsByIds: (lotIds) => {
+        const {
+          shiftConfig, planLots, lineStops, activeDay,
+        } = get();
+        const idSet = new Set(lotIds);
+        const remaining = renumberByProduct(planLots.filter((l) => !idSet.has(l.id)));
+        set({ planLots: applyLineStops(remaining, effectiveShift(shiftConfig, activeDay), lineStops) });
       },
 
       // Manual drag-to-reposition on the grid: used when a real-world delay

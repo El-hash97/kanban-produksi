@@ -112,6 +112,7 @@ export default function TimeGrid() {
   const products = useBoardStore((s) => s.products);
   const activeDay = useBoardStore((s) => s.activeDay);
   const setLotsProduct = useBoardStore((s) => s.setLotsProduct);
+  const removeLotsByIds = useBoardStore((s) => s.removeLotsByIds);
   const setLotStart = useBoardStore((s) => s.setLotStart);
   const nowMin = useNowMin(shiftConfig);
   const actualLots = useMemo(() => deriveActual(planLots, nowMin), [planLots, nowMin]);
@@ -214,6 +215,20 @@ export default function TimeGrid() {
     setPickerPos({ left, top });
   }, [picker]);
 
+  // Backspace/Delete while the model picker is open removes the selected
+  // lot(s) instead of retagging them — same selection, an alternate action.
+  useEffect(() => {
+    if (!picker) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+      e.preventDefault();
+      removeLotsByIds(picker.lotIds);
+      setPicker(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [picker, removeLotsByIds]);
+
   return (
     <div className="border-2 border-red-600/70 text-white relative">
       {/* minute header */}
@@ -309,6 +324,16 @@ export default function TimeGrid() {
                 {p.label}
               </button>
             ))}
+            <button
+              className="px-2 py-0.5 text-[10px] font-bold text-white bg-red-700 hover:bg-red-600 rounded-sm"
+              title="Hapus lot (atau tekan Backspace)"
+              onClick={() => {
+                removeLotsByIds(picker.lotIds);
+                setPicker(null);
+              }}
+            >
+              HAPUS
+            </button>
           </div>
         </>
       )}

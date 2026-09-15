@@ -86,6 +86,19 @@ describe('boardStore', () => {
     ]);
   });
 
+  it('removeLotsByIds drops a drag-selected block, renumbers, and closes the gap', () => {
+    useBoardStore.getState().addLots([{ productCode: '2TR', count: 4 }]);
+    const [first, second, third, fourth] = useBoardStore.getState().planLots;
+    expect(fourth.startMin).toBe(442);
+    useBoardStore.getState().removeLotsByIds([second.id, third.id]);
+    const lots = useBoardStore.getState().planLots;
+    expect(lots.map((l) => l.id)).toEqual([first.id, fourth.id]);
+    expect(lots.map((l) => `${l.productCode}#${l.lotNo}`)).toEqual(['2TR#1', '2TR#2']);
+    // repacked from the shift's start on the standard pitch, same as any
+    // other lot-list mutation — the gap left by the removed lots is closed
+    expect(lots.map((l) => l.startMin)).toEqual([430, 434]);
+  });
+
   it('adding a break shifts lots scheduled during it', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
     // lots land at 430, 434, 438; a new break 430-440 covers lot1's natural

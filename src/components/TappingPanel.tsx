@@ -12,6 +12,16 @@ function furnaceColor(furnaceId: number): string {
   return DEFAULT_FURNACES.find((f) => f.id === furnaceId)?.color ?? '#888';
 }
 
+/** Black text reads fine on every furnace color except a genuinely dark one
+ * (e.g. Furnace 2's black), where it needs to flip to white instead. */
+function labelColorFor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.3 ? '#ffffff' : '#000000';
+}
+
 // e.g. "2TR Lot 5-6, 1TR Lot 1" — one clause per product code present in the group.
 function summarizeLots(lots: PlanLot[]): string {
   const byProduct = new Map<string, number[]>();
@@ -33,7 +43,11 @@ const SHAPE_SIZE = 'w-6 h-6';
 
 function TappingShapeIcon({ group, onClick }: { group: TappingGroup; onClick?: () => void }) {
   const color = furnaceColor(group.furnaceId);
-  const numberEl = <span className="font-bold text-black text-[10px] leading-none">{group.furnaceId}</span>;
+  const numberEl = (
+    <span className="font-bold text-[10px] leading-none" style={{ color: labelColorFor(color) }}>
+      {group.furnaceId}
+    </span>
+  );
 
   let shapeClass = `${SHAPE_SIZE} flex items-center justify-center`;
   const style: CSSProperties = { backgroundColor: color };

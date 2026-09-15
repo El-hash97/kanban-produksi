@@ -161,8 +161,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
 ];
 
 export const DEFAULT_FURNACES: Furnace[] = [
-  { id: 1, label: 'Furnace 1', color: '#f97316' },
-  { id: 2, label: 'Furnace 2', color: '#06b6d4' },
-  { id: 3, label: 'Furnace 3', color: '#a855f7' },
-  { id: 4, label: 'Furnace 4', color: '#f43f5e' },
+  { id: 1, label: 'Furnace 1', color: '#ef4444' },
+  { id: 2, label: 'Furnace 2', color: '#000000' },
+  { id: 3, label: 'Furnace 3', color: '#eab308' },
+  { id: 4, label: 'Furnace 4', color: '#f97316' },
 ];

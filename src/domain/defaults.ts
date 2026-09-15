@@ -150,10 +150,10 @@ export const DEFAULT_PRODUCTS: Product[] = [
     code: '2TR', label: 'B/C 2TR', color: '#3b82f6', sandMeasTimeMin: 9.5, moldPerBatch: 7,
   },
   {
-    code: '1TR', label: 'B/C 1TR', color: '#d946ef', sandMeasTimeMin: 9.5, moldPerBatch: 7,
+    code: '1TR', label: 'B/C 1TR', color: '#ef4444', sandMeasTimeMin: 9.5, moldPerBatch: 7,
   },
   {
-    code: 'KAI', label: 'CAMS', color: '#f59e0b', sandMeasTimeMin: 11.5, moldPerBatch: 5,
+    code: 'KAI', label: 'CAMS', color: '#ffffff', sandMeasTimeMin: 11.5, moldPerBatch: 5,
   },
   {
     code: 'CRANK', label: 'CRANK', color: '#22c55e', sandMeasTimeMin: 11.5, moldPerBatch: 5,

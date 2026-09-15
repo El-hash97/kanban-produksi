@@ -8,7 +8,7 @@ export type DayType = 'DAY' | 'FRIDAY';
 
 export type LineStopCategory = 'AV' | 'PE' | 'RQ';
 
-export type TeamGroup = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW';
+export type TeamGroup = 'RED' | 'WHITE';
 
 export interface Range {
   startMin: number;

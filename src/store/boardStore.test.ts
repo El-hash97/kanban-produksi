@@ -288,8 +288,8 @@ describe('boardStore', () => {
   });
 
   it('setGroup updates the team group for the active shift', () => {
-    useBoardStore.getState().setGroup('BLUE');
-    expect(useBoardStore.getState().shiftConfig.group).toBe('BLUE');
+    useBoardStore.getState().setGroup('WHITE');
+    expect(useBoardStore.getState().shiftConfig.group).toBe('WHITE');
   });
 
   it('setSandPerMixing updates the sand-per-mixing setting', () => {

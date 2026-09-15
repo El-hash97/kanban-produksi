@@ -5,7 +5,7 @@ import type {
 } from '../domain/types';
 import TimeSelect from './TimeSelect';
 
-const GROUPS: TeamGroup[] = ['RED', 'BLUE', 'GREEN', 'YELLOW'];
+const GROUPS: TeamGroup[] = ['RED', 'WHITE'];
 const SAND_TIME_OPTIONS = [8.5, 9.5, 10.5, 11.5, 12.5];
 const ZERO_QTY: Record<ProductCode, number> = {
   '2TR': 0, '1TR': 0, KAI: 0, CRANK: 0,

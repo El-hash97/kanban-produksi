@@ -78,6 +78,8 @@ function InputPlanningTab() {
   const products = useBoardStore((s) => s.products);
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const sandPerMixing = useBoardStore((s) => s.sandPerMixing);
+  const activeDay = useBoardStore((s) => s.activeDay);
+  const setActiveDay = useBoardStore((s) => s.setActiveDay);
   const addLots = useBoardStore((s) => s.addLots);
   const setProductionStart = useBoardStore((s) => s.setProductionStart);
   const setGroup = useBoardStore((s) => s.setGroup);
@@ -112,6 +114,22 @@ function InputPlanningTab() {
 
   return (
     <div className="p-3 space-y-2 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="text-gray-400">HARI</span>
+        <button
+          className={`px-2 py-0.5 rounded font-bold ${activeDay === 'DAY' ? 'bg-cyan-700 text-white' : 'text-gray-400 hover:text-white'}`}
+          onClick={() => setActiveDay('DAY')}
+        >
+          DAY
+        </button>
+        <button
+          className={`px-2 py-0.5 rounded font-bold ${activeDay === 'FRIDAY' ? 'bg-cyan-700 text-white' : 'text-gray-400 hover:text-white'}`}
+          onClick={() => setActiveDay('FRIDAY')}
+        >
+          FRIDAY
+        </button>
+        <span className="text-gray-500">(otomatis FRIDAY tiap hari Jumat)</span>
+      </div>
       <table className="w-full">
         <thead className="text-green-400">
           <tr>

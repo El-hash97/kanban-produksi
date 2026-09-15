@@ -22,8 +22,6 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showInputParameter, setShowInputParameter] = useState(false);
   const [showUpdatePlanning, setShowUpdatePlanning] = useState(false);
-  const activeDay = useBoardStore((s) => s.activeDay);
-  const setActiveDay = useBoardStore((s) => s.setActiveDay);
   const resetBoard = useBoardStore((s) => s.resetBoard);
 
   return (
@@ -45,21 +43,8 @@ export default function App() {
             </button>
           ))}
           <div className="ml-auto flex items-center gap-2 px-2 py-1 text-xs">
-            <span className="text-gray-400">HARI:</span>
             <button
-              className={`px-2 py-0.5 rounded font-bold ${activeDay === 'DAY' ? 'bg-cyan-700 text-white' : 'text-gray-400 hover:text-white'}`}
-              onClick={() => setActiveDay('DAY')}
-            >
-              DAY
-            </button>
-            <button
-              className={`px-2 py-0.5 rounded font-bold ${activeDay === 'FRIDAY' ? 'bg-cyan-700 text-white' : 'text-gray-400 hover:text-white'}`}
-              onClick={() => setActiveDay('FRIDAY')}
-            >
-              FRIDAY
-            </button>
-            <button
-              className="ml-2 px-2 py-0.5 rounded bg-cyan-700 hover:bg-cyan-600"
+              className="px-2 py-0.5 rounded bg-cyan-700 hover:bg-cyan-600"
               onClick={() => setShowInputParameter(true)}
             >
               ⚙ Input Parameter

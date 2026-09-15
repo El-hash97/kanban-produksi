@@ -34,7 +34,6 @@ interface BoardState {
   informasiLog: InformasiNote[];
   sandPerMixing: number;
   addLots: (requests: LotRequest[]) => void;
-  removeLots: (productCode: ProductCode, count: number) => void;
   setLotProduct: (lotId: string, productCode: ProductCode) => void;
   setLotsProduct: (lotIds: string[], productCode: ProductCode) => void;
   setLotStart: (lotId: string, newStartMin: number) => void;
@@ -99,24 +98,6 @@ export const useBoardStore = create<BoardState>()(
         const merged = [...existing, ...requests];
         const placed = autoPlaceLots(merged, eff);
         set({ planLots: applyLineStops(placed, eff, lineStops) });
-      },
-
-      // Drop the highest-lotNo lots of a model (i.e. the most recently
-      // numbered ones for that product), not necessarily the last lots
-      // overall — a lot may have been retagged to another model via the
-      // grid, so "last for this model" and "last in the schedule" can differ.
-      removeLots: (productCode, count) => {
-        const {
-          shiftConfig, planLots, lineStops, activeDay,
-        } = get();
-        const toDrop = planLots
-          .filter((l) => l.productCode === productCode)
-          .sort((a, b) => b.lotNo - a.lotNo)
-          .slice(0, count)
-          .map((l) => l.id);
-        const dropSet = new Set(toDrop);
-        const remaining = renumberByProduct(planLots.filter((l) => !dropSet.has(l.id)));
-        set({ planLots: applyLineStops(remaining, effectiveShift(shiftConfig, activeDay), lineStops) });
       },
 
       setLotProduct: (lotId, productCode) => {

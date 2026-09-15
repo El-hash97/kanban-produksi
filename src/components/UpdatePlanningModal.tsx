@@ -4,6 +4,12 @@ import type { ProductCode } from '../domain/types';
 
 const HISTORY_COLUMNS: ProductCode[] = ['1TR', '2TR', 'KAI', 'CRANK'];
 
+/** Keeps only digits and strips a leading zero once a further digit follows,
+ * so a controlled number field never shows "05" while the user is typing. */
+function sanitizeDigits(raw: string): string {
+  return raw.replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '');
+}
+
 export default function UpdatePlanningModal({ onClose }: { onClose: () => void }) {
   const products = useBoardStore((s) => s.products);
   const planLots = useBoardStore((s) => s.planLots);
@@ -22,18 +28,22 @@ export default function UpdatePlanningModal({ onClose }: { onClose: () => void }
     return counts;
   }, [planLots]);
 
-  const [target, setTarget] = useState<Record<ProductCode, number>>(currentCounts);
-  const [sandQty, setSandQty] = useState(sandPerMixing);
+  const [target, setTarget] = useState<Record<ProductCode, string>>(
+    () => Object.fromEntries(
+      Object.entries(currentCounts).map(([code, count]) => [code, String(count)]),
+    ) as Record<ProductCode, string>,
+  );
+  const [sandQty, setSandQty] = useState(String(sandPerMixing));
 
   // Logs into the same planningHistory Input Planning writes to, so the two
   // entry points share one combined history (spec §5). This window doesn't
   // re-ask for Group/Time Begin, so the snapshot carries the shift's current
   // values for those.
   const submit = () => {
-    applyPlanningTargets(products.map((p) => ({ productCode: p.code, qty: target[p.code] })));
-    setSandPerMixing(sandQty);
+    applyPlanningTargets(products.map((p) => ({ productCode: p.code, qty: Number(target[p.code]) || 0 })));
+    setSandPerMixing(Number(sandQty) || 0);
     const entries = products.map((p) => ({
-      productCode: p.code, qty: target[p.code], sandMeasTimeMin: p.sandMeasTimeMin,
+      productCode: p.code, qty: Number(target[p.code]) || 0, sandMeasTimeMin: p.sandMeasTimeMin,
     }));
     logPlanningSnapshot(entries, shiftConfig.group, shiftConfig.productionStartMin);
   };
@@ -64,11 +74,12 @@ export default function UpdatePlanningModal({ onClose }: { onClose: () => void }
                   <td className="text-center">{currentCounts[p.code]}</td>
                   <td>
                     <input
-                      type="number"
-                      min={0}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0"
                       className="bg-black border border-cyan-500 w-16 px-1"
                       value={target[p.code]}
-                      onChange={(e) => setTarget((t) => ({ ...t, [p.code]: Math.max(0, Number(e.target.value)) }))}
+                      onChange={(e) => setTarget((t) => ({ ...t, [p.code]: sanitizeDigits(e.target.value) }))}
                     />
                   </td>
                 </tr>
@@ -78,10 +89,12 @@ export default function UpdatePlanningModal({ onClose }: { onClose: () => void }
           <div className="flex items-center gap-2">
             <span>JML.SAND/MIXING</span>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              placeholder="0"
               className="bg-black border border-cyan-500 w-20 px-1"
               value={sandQty}
-              onChange={(e) => setSandQty(Number(e.target.value))}
+              onChange={(e) => setSandQty(sanitizeDigits(e.target.value))}
             />
           </div>
           <button className="bg-cyan-700 hover:bg-cyan-600 px-3 py-1 rounded" onClick={submit}>

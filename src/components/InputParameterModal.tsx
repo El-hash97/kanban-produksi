@@ -7,9 +7,16 @@ import TimeSelect from './TimeSelect';
 
 const GROUPS: TeamGroup[] = ['RED', 'WHITE'];
 const SAND_TIME_OPTIONS = [8.5, 9.5, 10.5, 11.5, 12.5];
-const ZERO_QTY: Record<ProductCode, number> = {
-  '2TR': 0, '1TR': 0, KAI: 0, CRANK: 0,
+const EMPTY_QTY: Record<ProductCode, string> = {
+  '2TR': '', '1TR': '', KAI: '', CRANK: '',
 };
+
+/** Keeps only digits and strips a leading zero once a further digit follows,
+ * so a controlled number field never shows "05" or forces a stray "1" back
+ * in front of what the user is typing (see the min-clamp note below). */
+function sanitizeDigits(raw: string): string {
+  return raw.replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '');
+}
 
 function InputProblemTab() {
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
@@ -78,29 +85,29 @@ function InputPlanningTab() {
   const setTaktTime = useBoardStore((s) => s.setTaktTime);
   const logPlanningSnapshot = useBoardStore((s) => s.logPlanningSnapshot);
 
-  const [qty, setQty] = useState<Record<ProductCode, number>>(ZERO_QTY);
+  const [qty, setQty] = useState<Record<ProductCode, string>>(EMPTY_QTY);
   const [sandTime, setSandTime] = useState<Record<ProductCode, number>>(
     () => Object.fromEntries(products.map((p) => [p.code, p.sandMeasTimeMin])) as Record<ProductCode, number>,
   );
   const [timeBegin, setTimeBegin] = useState(shiftConfig.productionStartMin);
   const [group, setGroupLocal] = useState<TeamGroup>(shiftConfig.group);
-  const [sandQty, setSandQty] = useState(sandPerMixing);
-  const [taktTime, setTaktTimeLocal] = useState(shiftConfig.tTimeSec);
+  const [sandQty, setSandQty] = useState(String(sandPerMixing));
+  const [taktTime, setTaktTimeLocal] = useState(String(shiftConfig.tTimeSec));
 
-  const total = Object.values(qty).reduce((a, b) => a + b, 0);
+  const total = Object.values(qty).reduce((a, b) => a + (Number(b) || 0), 0);
 
   const submit = () => {
     const entries: PlanningEntry[] = products
-      .map((p) => ({ productCode: p.code, qty: qty[p.code], sandMeasTimeMin: sandTime[p.code] }))
+      .map((p) => ({ productCode: p.code, qty: Number(qty[p.code]) || 0, sandMeasTimeMin: sandTime[p.code] }))
       .filter((e) => e.qty > 0);
     if (entries.length === 0) return;
     setGroup(group);
     setProductionStart(timeBegin);
-    setSandPerMixing(sandQty);
-    setTaktTime(taktTime);
+    setSandPerMixing(Number(sandQty) || 0);
+    setTaktTime(Math.max(1, Number(taktTime) || 1));
     addLots(entries.map((e) => ({ productCode: e.productCode, count: e.qty })));
     logPlanningSnapshot(entries, group, timeBegin);
-    setQty(ZERO_QTY);
+    setQty(EMPTY_QTY);
   };
 
   return (
@@ -120,11 +127,12 @@ function InputPlanningTab() {
               <td>{p.label}</td>
               <td>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
                   className="bg-black border border-cyan-500 w-16 px-1"
                   value={qty[p.code]}
-                  onChange={(e) => setQty((q) => ({ ...q, [p.code]: Math.max(0, Number(e.target.value)) }))}
+                  onChange={(e) => setQty((q) => ({ ...q, [p.code]: sanitizeDigits(e.target.value) }))}
                 />
               </td>
               <td>
@@ -145,11 +153,12 @@ function InputPlanningTab() {
         <span>TOTAL: <b>{total}</b></span>
         <span>TAKT TIME</span>
         <input
-          type="number"
-          min={1}
+          type="text"
+          inputMode="numeric"
+          placeholder="1"
           className="bg-black border border-cyan-500 w-16 px-1"
           value={taktTime}
-          onChange={(e) => setTaktTimeLocal(Math.max(1, Number(e.target.value)))}
+          onChange={(e) => setTaktTimeLocal(sanitizeDigits(e.target.value))}
         />
         <span>TIME BEGIN</span>
         <TimeSelect value={timeBegin} onChange={setTimeBegin} shift={shiftConfig} />
@@ -163,10 +172,12 @@ function InputPlanningTab() {
         </select>
         <span>JML.SAND/MIXING</span>
         <input
-          type="number"
+          type="text"
+          inputMode="numeric"
+          placeholder="0"
           className="bg-black border border-cyan-500 w-20 px-1"
           value={sandQty}
-          onChange={(e) => setSandQty(Number(e.target.value))}
+          onChange={(e) => setSandQty(sanitizeDigits(e.target.value))}
         />
       </div>
       <button className="bg-cyan-700 hover:bg-cyan-600 px-3 py-1 rounded" onClick={submit}>

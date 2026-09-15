@@ -134,6 +134,12 @@ export default function TimeGrid() {
     return new Set(planLots.slice(lo, hi + 1).map((l) => l.id));
   }, [dragAnchor, dragCurrent, planLots]);
 
+  // Deleting is only offered when the selection reaches the very last lot —
+  // trimming off the end is unambiguous, but freeing a hole in the middle
+  // would repack/renumber lots the operator never touched.
+  const lastLotId = planLots[planLots.length - 1]?.id;
+  const canDeleteSelection = !!picker && picker.lotIds.includes(lastLotId ?? '');
+
   const handleDragStart = (index: number, e: ReactMouseEvent) => {
     if (e.altKey) {
       setMoveState({ index, targetMin: planLots[index].startMin });
@@ -217,8 +223,10 @@ export default function TimeGrid() {
 
   // Backspace/Delete while the model picker is open removes the selected
   // lot(s) instead of retagging them — same selection, an alternate action.
+  // Only wired up when the selection reaches the last lot (see
+  // canDeleteSelection above).
   useEffect(() => {
-    if (!picker) return undefined;
+    if (!picker || !canDeleteSelection) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Backspace' && e.key !== 'Delete') return;
       e.preventDefault();
@@ -227,7 +235,7 @@ export default function TimeGrid() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [picker, removeLotsByIds]);
+  }, [picker, canDeleteSelection, removeLotsByIds]);
 
   return (
     <div className="border-2 border-red-600/70 text-white relative">
@@ -324,16 +332,18 @@ export default function TimeGrid() {
                 {p.label}
               </button>
             ))}
-            <button
-              className="px-2 py-0.5 text-[10px] font-bold text-white bg-red-700 hover:bg-red-600 rounded-sm"
-              title="Hapus lot (atau tekan Backspace)"
-              onClick={() => {
-                removeLotsByIds(picker.lotIds);
-                setPicker(null);
-              }}
-            >
-              HAPUS
-            </button>
+            {canDeleteSelection && (
+              <button
+                className="px-2 py-0.5 text-[10px] font-bold text-white bg-red-700 hover:bg-red-600 rounded-sm"
+                title="Hapus lot (atau tekan Backspace)"
+                onClick={() => {
+                  removeLotsByIds(picker.lotIds);
+                  setPicker(null);
+                }}
+              >
+                HAPUS
+              </button>
+            )}
           </div>
         </>
       )}

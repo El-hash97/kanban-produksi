@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { deriveActual, effectiveShift } from '../lib/scheduling';
 import { useNowMin } from '../hooks/useNowMin';
@@ -115,6 +117,8 @@ export default function TimeGrid() {
   const actualLots = useMemo(() => deriveActual(planLots, nowMin), [planLots, nowMin]);
   const hours = hourRange(shiftConfig);
   const [picker, setPicker] = useState<{ lotIds: string[]; x: number; y: number } | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [pickerPos, setPickerPos] = useState<{ left: number; top: number } | null>(null);
   const [dragAnchor, setDragAnchor] = useState<number | null>(null);
   const [dragCurrent, setDragCurrent] = useState<number | null>(null);
   const isDragging = dragAnchor !== null;
@@ -192,6 +196,24 @@ export default function TimeGrid() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moveState, planLots]);
 
+  // The model picker opens at the clicked point, but that point can sit near
+  // the viewport's edge (e.g. clicking a lot in the last hour column) — once
+  // its real size is known, clamp it back on-screen instead of letting it
+  // render past the right/bottom edge where it can't be clicked.
+  useLayoutEffect(() => {
+    if (!picker) {
+      setPickerPos(null);
+      return;
+    }
+    const el = pickerRef.current;
+    if (!el) return;
+    const margin = 4;
+    const rect = el.getBoundingClientRect();
+    const left = Math.min(Math.max(picker.x, margin), window.innerWidth - rect.width - margin);
+    const top = Math.min(Math.max(picker.y, margin), window.innerHeight - rect.height - margin);
+    setPickerPos({ left, top });
+  }, [picker]);
+
   return (
     <div className="border-2 border-red-600/70 text-white relative">
       {/* minute header */}
@@ -261,8 +283,13 @@ export default function TimeGrid() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setPicker(null)} />
           <div
+            ref={pickerRef}
             className="fixed z-50 flex gap-1 border-2 border-cyan-500 bg-black p-1"
-            style={{ left: picker.x, top: picker.y }}
+            style={{
+              left: pickerPos?.left ?? picker.x,
+              top: pickerPos?.top ?? picker.y,
+              visibility: pickerPos ? 'visible' : 'hidden',
+            }}
           >
             {picker.lotIds.length > 1 && (
               <span className="flex items-center px-1 text-[10px] text-yellow-300 font-bold">

@@ -4,6 +4,7 @@ import {
 import { renderHook } from '@testing-library/react';
 import { useBoardSync } from './useBoardSync';
 import { useBoardStore } from '../store/boardStore';
+import { useSyncStatusStore } from '../store/syncStatusStore';
 import { fetchBoard, pushBoard } from '../lib/boardSyncApi';
 import { DEFAULT_PRODUCTS, DEFAULT_SHIFT } from '../domain/defaults';
 
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
   useBoardStore.setState(basePersisted);
+  useSyncStatusStore.setState({ status: 'idle', lastError: null, lastSyncedAt: null });
   vi.mocked(fetchBoard).mockResolvedValue({ data: {} as never, updatedAt: new Date(0).toISOString() });
   vi.mocked(pushBoard).mockResolvedValue({ data: basePersisted, updatedAt: '2026-09-14T00:00:01.000Z' });
 });
@@ -110,5 +112,29 @@ describe('useBoardSync', () => {
       shiftConfig: otherDeviceShift,
       sandPerMixing: 3100,
     }));
+  });
+
+  it('reports sync status ok after a successful pull', async () => {
+    renderHook(() => useBoardSync());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useSyncStatusStore.getState().status).toBe('ok');
+  });
+
+  it('reports sync status error when the pull fails (e.g. DATABASE_URL/table missing)', async () => {
+    vi.mocked(fetchBoard).mockRejectedValue(new Error('fetchBoard failed: 500'));
+    renderHook(() => useBoardSync());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useSyncStatusStore.getState().status).toBe('error');
+    expect(useSyncStatusStore.getState().lastError).toBe('fetchBoard failed: 500');
+  });
+
+  it('reports sync status error when a push fails', async () => {
+    vi.mocked(pushBoard).mockRejectedValue(new Error('pushBoard failed: 500'));
+    renderHook(() => useBoardSync());
+    await vi.advanceTimersByTimeAsync(0);
+    useBoardStore.setState({ sandPerMixing: 3100 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(useSyncStatusStore.getState().status).toBe('error');
+    expect(useSyncStatusStore.getState().lastError).toBe('pushBoard failed: 500');
   });
 });

@@ -2,7 +2,12 @@ import { useEffect, useRef } from 'react';
 import {
   pickPersistedState, useBoardStore, type PersistedBoardState,
 } from '../store/boardStore';
+import { useSyncStatusStore } from '../store/syncStatusStore';
 import { fetchBoard, pushBoard } from '../lib/boardSyncApi';
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 const PUSH_DEBOUNCE_MS = 1000;
 const POLL_INTERVAL_MS = 4000;
@@ -29,6 +34,10 @@ export function useBoardSync(): void {
       try {
         const snapshot = await fetchBoard();
         if (cancelled) return;
+        // A successful fetch means the connection to /api/board (and Neon
+        // behind it) is fine, whether or not this particular poll had
+        // anything new to apply.
+        useSyncStatusStore.getState().reportOk(snapshot.updatedAt);
         const isNewer = lastKnownUpdatedAt.current === null
           || snapshot.updatedAt > lastKnownUpdatedAt.current;
         if (!isNewer) return;
@@ -40,9 +49,11 @@ export function useBoardSync(): void {
         applyingRemote.current = true;
         useBoardStore.setState(snapshot.data);
         applyingRemote.current = false;
-      } catch {
+      } catch (err) {
         // Offline or the API isn't reachable yet — localStorage keeps the
         // board usable; the next poll tries again.
+        if (cancelled) return;
+        useSyncStatusStore.getState().reportError(errorMessage(err));
       }
     }
 
@@ -77,8 +88,10 @@ export function useBoardSync(): void {
           }
           const snapshot = await pushBoard(outgoing);
           lastKnownUpdatedAt.current = snapshot.updatedAt;
-        } catch {
+          useSyncStatusStore.getState().reportOk(snapshot.updatedAt);
+        } catch (err) {
           // Next edit (or the next poll) will retry.
+          useSyncStatusStore.getState().reportError(errorMessage(err));
         }
       }, PUSH_DEBOUNCE_MS);
     });

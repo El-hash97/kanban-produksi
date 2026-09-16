@@ -7,6 +7,7 @@ import BreakSettingsModal from './components/BreakSettingsModal';
 import InputParameterModal from './components/InputParameterModal';
 import UpdatePlanningModal from './components/UpdatePlanningModal';
 import TappingPanel from './components/TappingPanel';
+import SyncStatusBadge from './components/SyncStatusBadge';
 import { useBoardStore } from './store/boardStore';
 import { useBoardSync } from './hooks/useBoardSync';
 
@@ -45,6 +46,7 @@ export default function App() {
             </button>
           ))}
           <div className="ml-auto flex items-center gap-2 px-2 py-1 text-xs">
+            <SyncStatusBadge />
             <button
               className="px-2 py-0.5 rounded bg-cyan-700 hover:bg-cyan-600"
               onClick={() => setShowInputParameter(true)}

@@ -4,6 +4,7 @@ import type {
   LineStopCategory, PlanningEntry, ProductCode, TeamGroup,
 } from '../domain/types';
 import TimeSelect from './TimeSelect';
+import { nowMinForShift } from '../lib/time';
 
 const GROUPS: TeamGroup[] = ['RED', 'WHITE'];
 const SAND_TIME_OPTIONS = [8.5, 9.5, 10.5, 11.5, 12.5];
@@ -21,8 +22,9 @@ function sanitizeDigits(raw: string): string {
 function InputProblemTab() {
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const addLineStop = useBoardStore((s) => s.addLineStop);
-  const [start, setStart] = useState(shiftConfig.startMin);
-  const [end, setEnd] = useState(shiftConfig.startMin + 5);
+  // Default to the current clock: a line stop is normally logged as it happens.
+  const [start, setStart] = useState(() => nowMinForShift(shiftConfig));
+  const [end, setEnd] = useState(() => nowMinForShift(shiftConfig) + 5);
   const [problem, setProblem] = useState('');
   const [counterMeasure, setCounterMeasure] = useState('');
   const [category, setCategory] = useState<LineStopCategory>('AV');

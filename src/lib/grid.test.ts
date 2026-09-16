@@ -6,11 +6,20 @@ const shift = {
 };
 
 describe('grid', () => {
-  it('lists one hour-start per row from 07:00 to 18:00', () => {
+  it('lists one hour-start per row from 07:00 to 18:00, plus an extra 06:00 lead-in row for shift 1', () => {
     const hours = hourRange(shift);
-    expect(hours[0]).toBe(420);
+    expect(hours[0]).toBe(360); // 06:00 lead-in row
+    expect(hours[1]).toBe(420); // shift's actual start
     expect(hours[hours.length - 1]).toBe(1080); // 18:00
-    expect(hours).toHaveLength(12);
+    expect(hours).toHaveLength(13);
+  });
+
+  it('appends an extra row at shift end for shift 2, up to 08:00', () => {
+    const shift2 = { ...shift, shiftNo: 2, startMin: 1140, endMin: 1860 }; // 19:00-07:00(+1d)
+    const hours = hourRange(shift2);
+    expect(hours[0]).toBe(1140);
+    expect(hours[hours.length - 1]).toBe(1860); // 07:00(+1d), row spans to 08:00
+    expect(hours).toHaveLength(13); // 12 normal rows + 1 trailing row
   });
 
   it('maps a lot to a 1-based column and span within its hour', () => {

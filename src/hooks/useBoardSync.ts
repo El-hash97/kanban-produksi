@@ -42,9 +42,17 @@ export function useBoardSync(): void {
           || snapshot.updatedAt > lastKnownUpdatedAt.current;
         if (!isNewer) return;
         lastKnownUpdatedAt.current = snapshot.updatedAt;
-        // An empty object means no one has pushed yet (fresh row) — never
-        // let that overwrite whatever's already on this device.
-        if (Object.keys(snapshot.data).length === 0) return;
+        // An empty object means no one has published yet (the board_state
+        // row is still the '{}' seed from schema.sql). Never let that
+        // overwrite this device — but don't just bail either: with every
+        // device waiting for content that never arrives, each one stays on
+        // its own localStorage and they can never converge. Publish this
+        // device's board so the others have something to pull.
+        if (Object.keys(snapshot.data).length === 0) {
+          const seeded = await pushBoard(pickPersistedState(useBoardStore.getState()));
+          lastKnownUpdatedAt.current = seeded.updatedAt;
+          return;
+        }
         if (statesEqual(snapshot.data, pickPersistedState(useBoardStore.getState()))) return;
         applyingRemote.current = true;
         useBoardStore.setState(snapshot.data);

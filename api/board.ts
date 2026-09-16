@@ -104,6 +104,16 @@ export function createHandler(sql: SqlClient) {
 
 async function readBody(req: IncomingMessage): Promise<string | undefined> {
   if (req.method === 'GET' || req.method === 'HEAD') return undefined;
+  // Vercel's Node runtime may have already consumed the stream and parsed it
+  // onto req.body. Re-reading the stream then yields nothing, every PUT
+  // arrives with an empty body, and request.json() throws — a push path that
+  // fails while GET keeps succeeding, so the status badge still reads LIVE.
+  const parsed = (req as IncomingMessage & { body?: unknown }).body;
+  if (parsed !== undefined && parsed !== null) {
+    if (typeof parsed === 'string') return parsed;
+    if (Buffer.isBuffer(parsed)) return parsed.toString('utf8');
+    return JSON.stringify(parsed);
+  }
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(Buffer.from(chunk));
   return Buffer.concat(chunks).toString('utf8');

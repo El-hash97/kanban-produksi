@@ -121,6 +121,21 @@ describe('createNodeHandler (Vercel Node signature bridge)', () => {
     expect(res.getHeaders()['cache-control']).toBe('no-store');
   });
 
+  it('uses req.body when the runtime already consumed the stream', async () => {
+    // Vercel pre-parses JSON bodies onto req.body; reading the stream again
+    // yields nothing, so without this every push would fail while GET kept
+    // working — a silently broken sync behind a green status badge.
+    const sql = makeSql([{ data: { foo: 'parsed' }, updated_at: '2026-09-14T02:00:00.000Z' }]);
+    const nodeHandler = createNodeHandler(createHandler(sql));
+    const res = fakeNodeResponse();
+    const req = Object.assign(fakeNodeRequest('PUT'), { body: { data: { foo: 'parsed' } } });
+
+    await nodeHandler(req, res as unknown as ServerResponse);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body!).data).toEqual({ foo: 'parsed' });
+  });
+
   it('forwards a PUT body through to the handler', async () => {
     const sql = makeSql([{ data: { foo: 'baz' }, updated_at: '2026-09-14T01:00:00.000Z' }]);
     const nodeHandler = createNodeHandler(createHandler(sql));

@@ -60,6 +60,12 @@ describe('useBoardSync', () => {
     expect(useBoardStore.getState().sandPerMixing).toBe(2700);
   });
 
+  it('seeds an empty server board from this device instead of leaving every device unsynced', async () => {
+    renderHook(() => useBoardSync());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(pushBoard).toHaveBeenCalledWith(expect.objectContaining({ sandPerMixing: 2700 }));
+  });
+
   it('applies a newer non-empty snapshot from the server', async () => {
     vi.mocked(fetchBoard).mockResolvedValue({
       data: { ...basePersisted, sandPerMixing: 3000 },

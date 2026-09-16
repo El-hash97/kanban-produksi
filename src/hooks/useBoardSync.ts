@@ -54,7 +54,28 @@ export function useBoardSync(): void {
       if (pushTimer.current) clearTimeout(pushTimer.current);
       pushTimer.current = setTimeout(async () => {
         try {
-          const snapshot = await pushBoard(pickPersistedState(state));
+          // Re-check the server right before pushing, and if it already has
+          // a newer shiftConfig/shiftPresets (someone else just changed a
+          // Wakom/Istirahat time on another device), carry that forward
+          // instead of the copy this device had when it started editing.
+          // Otherwise an unrelated local edit here (moving a lot, say) would
+          // push this device's stale schedule and silently revert the other
+          // device's change — the one shared schedule every device must
+          // agree on for live production use.
+          let outgoing = pickPersistedState(state);
+          const fresh = await fetchBoard();
+          const isNewer = lastKnownUpdatedAt.current === null
+            || fresh.updatedAt > lastKnownUpdatedAt.current;
+          if (isNewer && Object.keys(fresh.data).length > 0) {
+            applyingRemote.current = true;
+            useBoardStore.setState({
+              shiftConfig: fresh.data.shiftConfig,
+              shiftPresets: fresh.data.shiftPresets,
+            });
+            applyingRemote.current = false;
+            outgoing = pickPersistedState(useBoardStore.getState());
+          }
+          const snapshot = await pushBoard(outgoing);
           lastKnownUpdatedAt.current = snapshot.updatedAt;
         } catch {
           // Next edit (or the next poll) will retry.

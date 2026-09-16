@@ -27,7 +27,7 @@ describe('boardSyncApi', () => {
   it('fetchBoard GETs /api/board', async () => {
     const result = await fetchBoard();
     expect(result).toEqual(snapshot);
-    expect(fetch).toHaveBeenCalledWith('/api/board');
+    expect(fetch).toHaveBeenCalledWith('/api/board', { cache: 'no-store' });
   });
 
   it('pushBoard PUTs the data payload to /api/board', async () => {

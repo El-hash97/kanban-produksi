@@ -31,9 +31,25 @@ function json(body: unknown, status = 200): Response {
 // its own fetch, since the tagged-template call itself takes no signal.
 const QUERY_TIMEOUT_MS = 8000;
 
-neonConfig.fetchFunction = (url: string | URL | Request, init?: RequestInit) => (
-  fetch(url, { ...init, signal: AbortSignal.timeout(QUERY_TIMEOUT_MS) })
-);
+// Diagnostic-only: proves in Vercel's Runtime Logs whether the driver ever
+// actually dispatches a request and, if so, how long it took to settle —
+// the one thing not visible from a bare "Task timed out after 300s" line.
+// Read with `grep '\[board]'` on the log for the failing invocation.
+neonConfig.fetchFunction = (url: string | URL | Request, init?: RequestInit) => {
+  const label = typeof url === 'string' ? url : url.toString();
+  const startedAt = Date.now();
+  console.log(`[board] fetchFunction: dispatching to ${label}`);
+  return fetch(url, { ...init, signal: AbortSignal.timeout(QUERY_TIMEOUT_MS) }).then(
+    (res) => {
+      console.log(`[board] fetchFunction: got HTTP ${res.status} after ${Date.now() - startedAt}ms`);
+      return res;
+    },
+    (err) => {
+      console.error(`[board] fetchFunction: rejected after ${Date.now() - startedAt}ms:`, err);
+      throw err;
+    },
+  );
+};
 
 function withTimeoutMessage<T>(promise: Promise<T>): Promise<T> {
   return promise.catch((err: unknown) => {
@@ -46,11 +62,14 @@ function withTimeoutMessage<T>(promise: Promise<T>): Promise<T> {
 
 export function createHandler(sql: SqlClient) {
   return async function handler(request: Request): Promise<Response> {
+    const startedAt = Date.now();
+    console.log(`[board] ${request.method} start`);
     try {
       if (request.method === 'GET') {
         const rows = await withTimeoutMessage(
           sql`select data, updated_at from board_state where id = 'main'`,
         );
+        console.log(`[board] GET sql resolved after ${Date.now() - startedAt}ms, rows=${rows.length}`);
         const row = rows[0];
         if (!row) {
           return json({ data: {}, updatedAt: new Date(0).toISOString() });
@@ -68,12 +87,14 @@ export function createHandler(sql: SqlClient) {
             returning data, updated_at
           `,
         );
+        console.log(`[board] PUT sql resolved after ${Date.now() - startedAt}ms`);
         const row = rows[0];
         return json({ data: row.data, updatedAt: row.updated_at });
       }
 
       return new Response('Method Not Allowed', { status: 405 });
     } catch (err) {
+      console.error(`[board] ${request.method} failed after ${Date.now() - startedAt}ms:`, err);
       const message = err instanceof Error ? err.message : String(err);
       return json({ error: message }, 500);
     }
@@ -91,6 +112,15 @@ export function createHandler(sql: SqlClient) {
 function defaultSql(): SqlClient {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
+  // Logs only the host, never credentials — confirms what this specific
+  // running instance actually resolved process.env.DATABASE_URL to, which
+  // can differ from what the dashboard shows if the wrong environment
+  // scope, a stale cached instance, or a typo'd var name is in play.
+  try {
+    console.log(`[board] DATABASE_URL host: ${new URL(url).host}`);
+  } catch {
+    console.error('[board] DATABASE_URL is set but not a valid URL');
+  }
   return neon(url) as unknown as SqlClient;
 }
 

@@ -27,7 +27,10 @@ describe('boardSyncApi', () => {
   it('fetchBoard GETs /api/board', async () => {
     const result = await fetchBoard();
     expect(result).toEqual(snapshot);
-    expect(fetch).toHaveBeenCalledWith('/api/board', { cache: 'no-store' });
+    expect(fetch).toHaveBeenCalledWith('/api/board', {
+      cache: 'no-store',
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it('pushBoard PUTs the data payload to /api/board', async () => {
@@ -46,5 +49,15 @@ describe('boardSyncApi', () => {
   it('pushBoard throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('err', { status: 500 })));
     await expect(pushBoard(persisted)).rejects.toThrow('pushBoard failed: 500');
+  });
+
+  it('fetchBoard passes an AbortSignal so a hung request eventually rejects instead of hanging forever', async () => {
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    })));
+    const promise = fetchBoard();
+    const signal = vi.mocked(fetch).mock.calls[0][1]?.signal as AbortSignal;
+    signal.dispatchEvent(new Event('abort'));
+    await expect(promise).rejects.toThrow();
   });
 });

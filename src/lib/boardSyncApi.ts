@@ -6,7 +6,7 @@ export interface BoardSnapshot {
 }
 
 export async function fetchBoard(): Promise<BoardSnapshot> {
-  const res = await fetch('/api/board');
+  const res = await fetch('/api/board', { cache: 'no-store' });
   if (!res.ok) throw new Error(`fetchBoard failed: ${res.status}`);
   return res.json() as Promise<BoardSnapshot>;
 }
@@ -16,6 +16,7 @@ export async function pushBoard(data: PersistedBoardState): Promise<BoardSnapsho
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ data }),
+    cache: 'no-store',
   });
   if (!res.ok) throw new Error(`pushBoard failed: ${res.status}`);
   return res.json() as Promise<BoardSnapshot>;

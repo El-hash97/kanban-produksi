@@ -12,7 +12,10 @@ export type SqlClient = (
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    // Every device polls this endpoint expecting the latest row — a cached
+    // response (browser, proxy, or CDN) would let one device silently keep
+    // showing stale board state while others move on.
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   });
 }
 

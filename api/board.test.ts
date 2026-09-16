@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { neonConfig } from '@neondatabase/serverless';
 import { createHandler, type SqlClient } from './board';
 
 function makeSql(rows: Record<string, unknown>[]): SqlClient {
@@ -49,19 +50,34 @@ describe('api/board handler', () => {
     expect(body.error).toBe('connection refused');
   });
 
-  it('fails fast with a clear message when the query hangs, instead of letting Vercel kill it with an opaque 504', async () => {
-    vi.useFakeTimers();
+  it('turns a fetch TimeoutError into a clear message instead of the raw driver error', async () => {
+    const timeoutError = Object.assign(new Error('signal timed out'), { name: 'TimeoutError' });
+    const sql = vi.fn(async () => { throw timeoutError; }) as unknown as SqlClient;
+    const handler = createHandler(sql);
+    const res = await handler(new Request('http://test/api/board', { method: 'GET' }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toMatch(/timed out/i);
+    expect(body.error).toMatch(/DATABASE_URL/);
+  });
+
+  it('configures neonConfig.fetchFunction to actually abort a hung outbound request', async () => {
+    // Racing a local timer while leaving Neon's real HTTP request in flight
+    // was the bug: Vercel kept the invocation alive for its full platform
+    // limit regardless, because the underlying connection was never closed.
+    // fetchFunction is the driver's documented hook for supplying the fetch
+    // it uses internally, so this is what actually cancels that request.
+    expect(neonConfig.fetchFunction).toBeTypeOf('function');
+    const realFetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return new Response('{}');
+    });
+    vi.stubGlobal('fetch', realFetch);
     try {
-      const hangingSql = vi.fn(() => new Promise<never>(() => {})) as unknown as SqlClient;
-      const handler = createHandler(hangingSql);
-      const resPromise = handler(new Request('http://test/api/board', { method: 'GET' }));
-      await vi.advanceTimersByTimeAsync(8000);
-      const res = await resPromise;
-      expect(res.status).toBe(500);
-      const body = await res.json();
-      expect(body.error).toMatch(/timed out/i);
+      await neonConfig.fetchFunction('https://example.com/sql', {});
+      expect(realFetch).toHaveBeenCalledTimes(1);
     } finally {
-      vi.useRealTimers();
+      vi.unstubAllGlobals();
     }
   });
 });

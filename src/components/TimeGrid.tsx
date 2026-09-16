@@ -1,5 +1,6 @@
 import {
-  useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent,
+  useEffect, useLayoutEffect, useMemo, useRef, useState,
+  type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { deriveActual, effectiveShift } from '../lib/scheduling';
@@ -17,7 +18,7 @@ function colorFor(products: Product[], code: string): string {
 
 function LotBoxes({
   lots, hour, products, row, selectable, onDragStart, onDragEnter, selectedIds, showCumulative,
-  movingId,
+  movingId, onTouchStart, onTouchMove, onTouchEnd,
 }: {
   lots: PlanLot[]; hour: number; products: Product[]; row: number;
   selectable?: boolean;
@@ -28,9 +29,15 @@ function LotBoxes({
   // lot's overall position across every model combined (planLots is already
   // in chronological order, so index+1 is exactly that count) — PLN only.
   showCumulative?: boolean;
-  // The lot currently being Alt-dragged to a new time — dimmed at its old
-  // spot while a preview shows where it will land.
+  // The lot currently being dragged (Alt+drag on desktop, long-press+drag on
+  // touch) to a new time — dimmed at its old spot while a preview shows
+  // where it will land.
   movingId?: string;
+  // Touch equivalent of Alt+drag: a long-press on a lot starts the same move
+  // preview a desktop Alt+drag would, since touch devices have no Alt key.
+  onTouchStart?: (index: number, e: ReactTouchEvent) => void;
+  onTouchMove?: (e: ReactTouchEvent) => void;
+  onTouchEnd?: () => void;
 }) {
   return (
     <>
@@ -42,14 +49,18 @@ function LotBoxes({
           <div
             key={lot.id}
             className={`flex flex-col rounded-sm m-px overflow-hidden select-none ${selectable ? 'cursor-pointer hover:ring-2 hover:ring-white' : ''} ${selected ? 'ring-2 ring-yellow-300' : ''} ${movingId === lot.id ? 'opacity-30' : ''}`}
+            title={`${lot.productCode} Lot ${lot.lotNo} @ ${toHHmm(lot.startMin)}${selectable ? ' — klik/drag beberapa lot untuk ubah model, Alt+drag (atau tahan di HP) geser waktu' : ''}`}
             style={{
               gridColumn: `${cs.col} / span ${cs.span}`,
               gridRow: row,
               outline: lot.shifted ? '1px solid #f87171' : 'none',
+              touchAction: onTouchStart ? 'none' : undefined,
             }}
-            title={`${lot.productCode} Lot ${lot.lotNo} @ ${toHHmm(lot.startMin)}${selectable ? ' — klik/drag beberapa lot untuk ubah model, Alt+drag geser waktu' : ''}`}
             onMouseDown={onDragStart ? (e) => { e.preventDefault(); onDragStart(index, e); } : undefined}
             onMouseEnter={onDragEnter ? () => onDragEnter(index) : undefined}
+            onTouchStart={onTouchStart ? (e) => onTouchStart(index, e) : undefined}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
           >
             {showCumulative && (
               <div className="bg-black text-white text-[7px] leading-none text-center shrink-0 py-px">
@@ -123,9 +134,17 @@ export default function TimeGrid() {
   const [dragAnchor, setDragAnchor] = useState<number | null>(null);
   const [dragCurrent, setDragCurrent] = useState<number | null>(null);
   const isDragging = dragAnchor !== null;
-  // Alt+drag: reposition a single lot in time instead of selecting a range
-  // for model retagging. `targetMin` tracks the live preview position.
+  // Alt+drag (desktop) or long-press+drag (touch): reposition a single lot
+  // in time instead of selecting a range for model retagging. `targetMin`
+  // tracks the live preview position.
   const [moveState, setMoveState] = useState<{ index: number; targetMin: number } | null>(null);
+  // Long-press-to-move on touch: a timer armed on touchstart, cancelled if
+  // the finger lifts or moves too far before it fires (that's a tap/scroll,
+  // not a move gesture — touch has no Alt key to disambiguate up front).
+  const longPressTimer = useRef<number | null>(null);
+  const touchStartPoint = useRef<{ x: number; y: number } | null>(null);
+  const LONG_PRESS_MS = 400;
+  const LONG_PRESS_MOVE_TOLERANCE_PX = 10;
 
   const selectedIds = useMemo(() => {
     if (dragAnchor === null || dragCurrent === null) return undefined;
@@ -152,6 +171,32 @@ export default function TimeGrid() {
     if (isDragging) setDragCurrent(index);
   };
 
+  const clearLongPressTimer = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    touchStartPoint.current = null;
+  };
+  const handleLotTouchStart = (index: number, e: ReactTouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartPoint.current = { x: t.clientX, y: t.clientY };
+    longPressTimer.current = window.setTimeout(() => {
+      setMoveState({ index, targetMin: planLots[index].startMin });
+      longPressTimer.current = null;
+    }, LONG_PRESS_MS);
+  };
+  const handleLotTouchMove = (e: ReactTouchEvent) => {
+    // Only relevant before the long-press fires — once moveState is set, the
+    // window-level touchmove effect below takes over the drag preview.
+    const t = e.touches[0];
+    const start = touchStartPoint.current;
+    if (!t || !start || longPressTimer.current === null) return;
+    const dist = Math.hypot(t.clientX - start.x, t.clientY - start.y);
+    if (dist > LONG_PRESS_MOVE_TOLERANCE_PX) clearLongPressTimer();
+  };
+
   // Finish a click/drag-select on mouseup anywhere, so dragging off the last
   // lot box (into empty grid space) still ends the selection cleanly.
   useEffect(() => {
@@ -171,34 +216,54 @@ export default function TimeGrid() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDragging, dragAnchor, dragCurrent, planLots]);
 
-  // Alt+drag reposition: follow the mouse to compute the target minute (via
-  // the hour cell under the cursor), then commit on mouseup.
+  // Alt+drag (mouse) or long-press+drag (touch) reposition: follow the
+  // pointer to compute the target minute (via the hour cell under it), then
+  // commit on release. Shared by both input types via a common client-point
+  // reader, since the touch equivalent of Alt+drag has no mousemove/mouseup.
   useEffect(() => {
     if (!moveState) return undefined;
-    const targetMinFromEvent = (e: MouseEvent): number | null => {
-      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-hour]');
+    const targetMinFromPoint = (clientX: number, clientY: number): number | null => {
+      const el = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-hour]');
       if (!el) return null;
       const hour = Number(el.dataset.hour);
       const rect = el.getBoundingClientRect();
-      const frac = (e.clientX - rect.left) / rect.width;
+      const frac = (clientX - rect.left) / rect.width;
       const minuteOfHour = Math.min(59, Math.max(0, Math.round(frac * 60)));
       return hour + minuteOfHour;
     };
+    const commit = (min: number | null) => {
+      const resolved = min ?? moveState.targetMin;
+      const lot = planLots[moveState.index];
+      if (lot && resolved !== lot.startMin) setLotStart(lot.id, resolved);
+      setMoveState(null);
+    };
     const onMouseMove = (e: MouseEvent) => {
-      const min = targetMinFromEvent(e);
+      const min = targetMinFromPoint(e.clientX, e.clientY);
       if (min !== null) setMoveState((s) => (s ? { ...s, targetMin: min } : s));
     };
-    const onMouseUp = (e: MouseEvent) => {
-      const min = targetMinFromEvent(e) ?? moveState.targetMin;
-      const lot = planLots[moveState.index];
-      if (lot && min !== lot.startMin) setLotStart(lot.id, min);
-      setMoveState(null);
+    const onMouseUp = (e: MouseEvent) => commit(targetMinFromPoint(e.clientX, e.clientY));
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      e.preventDefault(); // suppress page scroll while dragging a lot
+      const min = targetMinFromPoint(t.clientX, t.clientY);
+      if (min !== null) setMoveState((s) => (s ? { ...s, targetMin: min } : s));
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const t = e.changedTouches[0];
+      commit(t ? targetMinFromPoint(t.clientX, t.clientY) : null);
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moveState, planLots]);
@@ -281,6 +346,9 @@ export default function TimeGrid() {
               selectedIds={selectedIds}
               showCumulative
               movingId={moveState ? planLots[moveState.index]?.id : undefined}
+              onTouchStart={handleLotTouchStart}
+              onTouchMove={handleLotTouchMove}
+              onTouchEnd={clearLongPressTimer}
             />
             <LotBoxes lots={actualLots} hour={hour} products={products} row={2} />
             <Overlays

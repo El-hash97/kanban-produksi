@@ -13,6 +13,14 @@ import {
 } from '../lib/scheduling';
 import { nowMinForShift, todayDayType } from '../lib/time';
 
+// One shift's own slice of planLots/lineStops/furnaceOverrides, stashed
+// away in `shiftData` while that shift isn't the active one.
+interface ShiftLotData {
+  planLots: PlanLot[];
+  lineStops: LineStop[];
+  furnaceOverrides: Record<string, FurnaceId>;
+}
+
 // The subset of BoardState that's plain data (serializes cleanly to JSON) —
 // what Zustand's `persist` middleware writes to localStorage, and what
 // useBoardSync pushes/pulls to the shared Neon-backed board. See
@@ -25,11 +33,16 @@ export interface PersistedBoardState {
   // saved default instead of being regenerated from scratch every time.
   shiftPresets: Record<number, ShiftConfig>;
   products: Product[];
+  // planLots/lineStops/furnaceOverrides below are always the *currently
+  // active* shift's data. shiftData is where the *other* shift's data waits
+  // while it's not on screen — setShiftNo swaps between them, so switching
+  // shifts never discards lots/line stops the way resetBoard does.
   planLots: PlanLot[];
   lineStops: LineStop[];
   // Manual furnace reassignments for the Tapping Furnace panel, keyed by
   // TappingGroup.id (stable per-tap id derived from its first lot).
   furnaceOverrides: Record<string, FurnaceId>;
+  shiftData: Record<number, ShiftLotData>;
   // Which break schedule (DAY vs FRIDAY) is currently driving the board.
   // Auto-set from the real date on load (persist merge); overridable for
   // the running session via setActiveDay.
@@ -88,11 +101,11 @@ function nextId(prefix: string): string {
 export function pickPersistedState(state: BoardState): PersistedBoardState {
   const {
     shiftConfig, shiftPresets, products, planLots, lineStops,
-    furnaceOverrides, activeDay, planningHistory, informasiLog, sandPerMixing,
+    furnaceOverrides, shiftData, activeDay, planningHistory, informasiLog, sandPerMixing,
   } = state;
   return {
     shiftConfig, shiftPresets, products, planLots, lineStops,
-    furnaceOverrides, activeDay, planningHistory, informasiLog, sandPerMixing,
+    furnaceOverrides, shiftData, activeDay, planningHistory, informasiLog, sandPerMixing,
   };
 }
 
@@ -105,6 +118,7 @@ export const useBoardStore = create<BoardState>()(
       planLots: [],
       lineStops: [],
       furnaceOverrides: {},
+      shiftData: {},
       activeDay: 'DAY',
       planningHistory: [],
       informasiLog: [],
@@ -288,19 +302,33 @@ export const useBoardStore = create<BoardState>()(
       },
 
       setShiftNo: (shiftNo) => {
-        const { shiftConfig, shiftPresets } = get();
+        const {
+          shiftConfig, shiftPresets, shiftData, planLots, lineStops, furnaceOverrides,
+        } = get();
         if (shiftConfig.shiftNo === shiftNo) return;
         // Reuse this shift's previously-saved settings (breaks included) if
         // it's been visited before; otherwise seed it from the template.
         const nextShift = ensureDandori(
           shiftPresets[shiftNo] ?? buildShiftConfig(shiftNo, shiftConfig.pic, shiftConfig.tTimeSec),
         );
+        // Lots/line stops/furnace overrides belong to whichever shift they
+        // were entered under — stash the shift we're leaving and restore
+        // whatever the target shift had saved (empty the first time it's
+        // ever visited). Only resetBoard is allowed to actually discard this.
+        const nextData: ShiftLotData = shiftData[shiftNo] ?? {
+          planLots: [], lineStops: [], furnaceOverrides: {},
+        };
         set({
           shiftConfig: nextShift,
           shiftPresets: { ...shiftPresets, [shiftNo]: nextShift },
-          planLots: [],
-          lineStops: [],
-          furnaceOverrides: {},
+          shiftData: {
+            ...shiftData,
+            [shiftConfig.shiftNo]: { planLots, lineStops, furnaceOverrides },
+            [shiftNo]: nextData,
+          },
+          planLots: nextData.planLots,
+          lineStops: nextData.lineStops,
+          furnaceOverrides: nextData.furnaceOverrides,
         });
       },
 
@@ -405,6 +433,7 @@ export const useBoardStore = create<BoardState>()(
           planLots: [],
           lineStops: [],
           furnaceOverrides: {},
+          shiftData: {},
         }),
     }),
     {

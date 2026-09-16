@@ -20,6 +20,7 @@ const basePersisted = {
   planLots: [],
   lineStops: [],
   furnaceOverrides: {},
+  shiftData: {},
   activeDay: 'DAY' as const,
   planningHistory: [],
   informasiLog: [],

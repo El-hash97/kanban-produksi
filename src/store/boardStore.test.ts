@@ -14,6 +14,7 @@ beforeEach(() => {
     planLots: [],
     lineStops: [],
     furnaceOverrides: {},
+    shiftData: {},
     activeDay: 'DAY',
     planningHistory: [],
     informasiLog: [],
@@ -120,7 +121,7 @@ describe('boardStore', () => {
     expect(planLots.map((l) => l.startMin)).toEqual([430, 434, 438]);
   });
 
-  it('switching to shift 2 regenerates the window as 19:00-07:00 and clears the board', () => {
+  it('switching to shift 2 regenerates the window as 19:00-07:00, and shows it empty the first time it is visited', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
     useBoardStore.getState().addLineStop(430, 440, 'x');
     useBoardStore.getState().setShiftNo(2);
@@ -128,6 +129,8 @@ describe('boardStore', () => {
     expect(shiftConfig.shiftNo).toBe(2);
     expect(shiftConfig.startMin).toBe(1140);
     expect(shiftConfig.endMin).toBe(1860);
+    // Shift 2 has no lots of its own yet — but shift 1's are not gone, they
+    // are stashed (see the next test) rather than deleted.
     expect(planLots).toHaveLength(0);
     expect(lineStops).toHaveLength(0);
   });
@@ -136,6 +139,43 @@ describe('boardStore', () => {
     useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
     useBoardStore.getState().setShiftNo(1);
     expect(useBoardStore.getState().planLots).toHaveLength(3);
+  });
+
+  it('switching shift keeps each shift\'s own lots, line stops and furnace overrides — switching is not resetBoard', () => {
+    useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
+    useBoardStore.getState().addLineStop(430, 440, 'Shift1 problem');
+    useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
+
+    useBoardStore.getState().setShiftNo(2);
+    expect(useBoardStore.getState().planLots).toHaveLength(0);
+    expect(useBoardStore.getState().lineStops).toHaveLength(0);
+    expect(useBoardStore.getState().furnaceOverrides).toEqual({});
+
+    useBoardStore.getState().addLots([{ productCode: '1TR', count: 2 }]);
+    useBoardStore.getState().addLineStop(1200, 1210, 'Shift2 problem');
+
+    useBoardStore.getState().setShiftNo(1);
+    const shift1 = useBoardStore.getState();
+    expect(shift1.planLots).toHaveLength(3);
+    expect(shift1.planLots.every((l) => l.productCode === '2TR')).toBe(true);
+    expect(shift1.lineStops.map((s) => s.keterangan)).toEqual(['Shift1 problem']);
+    expect(shift1.furnaceOverrides).toEqual({ 'tap-lot-1': 3 });
+
+    useBoardStore.getState().setShiftNo(2);
+    const shift2 = useBoardStore.getState();
+    expect(shift2.planLots).toHaveLength(2);
+    expect(shift2.planLots.every((l) => l.productCode === '1TR')).toBe(true);
+    expect(shift2.lineStops.map((s) => s.keterangan)).toEqual(['Shift2 problem']);
+  });
+
+  it('resetBoard is the only thing that discards a shift\'s stashed lots/line stops', () => {
+    useBoardStore.getState().addLots([{ productCode: '2TR', count: 3 }]);
+    useBoardStore.getState().setShiftNo(2); // shift 1's lots are now stashed, not deleted
+
+    useBoardStore.getState().resetBoard();
+
+    useBoardStore.getState().setShiftNo(1);
+    expect(useBoardStore.getState().planLots).toHaveLength(0);
   });
 
   it('resetBoard clears lots/line stops but leaves shift settings and custom breaks alone', () => {
@@ -268,7 +308,7 @@ describe('boardStore', () => {
     expect(useBoardStore.getState().furnaceOverrides).toEqual({});
   });
 
-  it('switching shift clears furnace overrides (tied to that shift\'s lots)', () => {
+  it('switching to a shift never visited before shows no furnace overrides yet (none saved for it)', () => {
     useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
     useBoardStore.getState().setShiftNo(2);
     expect(useBoardStore.getState().furnaceOverrides).toEqual({});
@@ -392,7 +432,7 @@ describe('pickPersistedState', () => {
     expect(Object.keys(persisted).sort()).toEqual([
       'activeDay', 'furnaceOverrides', 'informasiLog', 'lineStops',
       'planLots', 'planningHistory', 'products', 'sandPerMixing',
-      'shiftConfig', 'shiftPresets',
+      'shiftConfig', 'shiftData', 'shiftPresets',
     ]);
   });
 });

@@ -12,6 +12,7 @@ const persisted: PersistedBoardState = {
   planLots: [],
   lineStops: [],
   furnaceOverrides: {},
+  shiftData: {},
   activeDay: 'DAY',
   planningHistory: [],
   informasiLog: [],

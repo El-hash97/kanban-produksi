@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import { Readable } from 'node:stream';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { neonConfig } from '@neondatabase/serverless';
-import { createHandler, type SqlClient } from './board';
+import { createHandler, createNodeHandler, type SqlClient } from './board';
 
 function makeSql(rows: Record<string, unknown>[]): SqlClient {
   return vi.fn(async () => rows) as unknown as SqlClient;
@@ -79,5 +81,57 @@ describe('api/board handler', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+function fakeNodeRequest(method: string, body?: string): IncomingMessage {
+  const stream = Readable.from(body === undefined ? [] : [Buffer.from(body)]);
+  return Object.assign(stream, {
+    method,
+    url: '/api/board',
+    headers: { host: 'test.vercel.app', 'content-type': 'application/json' },
+  }) as unknown as IncomingMessage;
+}
+
+function fakeNodeResponse() {
+  const headers: Record<string, string> = {};
+  return {
+    statusCode: 0,
+    body: undefined as string | undefined,
+    setHeader(key: string, value: string) { headers[key] = value; },
+    getHeaders() { return headers; },
+    end(chunk?: Buffer) { this.body = chunk?.toString('utf8'); },
+  };
+}
+
+describe('createNodeHandler (Vercel Node signature bridge)', () => {
+  it('writes the Response through to res, rather than dropping it and hanging', async () => {
+    const sql = makeSql([{ data: { foo: 'bar' }, updated_at: '2026-09-14T00:00:00.000Z' }]);
+    const nodeHandler = createNodeHandler(createHandler(sql));
+    const res = fakeNodeResponse();
+
+    await nodeHandler(fakeNodeRequest('GET'), res as unknown as ServerResponse);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBeDefined();
+    expect(JSON.parse(res.body!)).toEqual({
+      data: { foo: 'bar' },
+      updatedAt: '2026-09-14T00:00:00.000Z',
+    });
+    expect(res.getHeaders()['cache-control']).toBe('no-store');
+  });
+
+  it('forwards a PUT body through to the handler', async () => {
+    const sql = makeSql([{ data: { foo: 'baz' }, updated_at: '2026-09-14T01:00:00.000Z' }]);
+    const nodeHandler = createNodeHandler(createHandler(sql));
+    const res = fakeNodeResponse();
+
+    await nodeHandler(
+      fakeNodeRequest('PUT', JSON.stringify({ data: { foo: 'baz' } })),
+      res as unknown as ServerResponse,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body!).data).toEqual({ foo: 'baz' });
   });
 });

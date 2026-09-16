@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { neon, neonConfig } from '@neondatabase/serverless';
 
 // A minimal structural type for Neon's tagged-template SQL client — just
@@ -101,6 +102,50 @@ export function createHandler(sql: SqlClient) {
   };
 }
 
+async function readBody(req: IncomingMessage): Promise<string | undefined> {
+  if (req.method === 'GET' || req.method === 'HEAD') return undefined;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function toHeaders(raw: IncomingMessage['headers']): Headers {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(raw)) {
+    if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
+    else if (value !== undefined) headers.set(key, value);
+  }
+  return headers;
+}
+
+/**
+ * Bridges Vercel's Node.js function signature to the Web-standard handler
+ * above.
+ *
+ * This is the bug that made the shared board never work: written as a bare
+ * `(Request) => Response` default export, Vercel's Node runtime invoked it
+ * as `(req, res)` instead. `req.method` reads the same on an IncomingMessage,
+ * so the query ran and logged fine (`sql resolved after 17ms, rows=1`) — but
+ * the returned Response was dropped on the floor, nothing ever called
+ * `res.end()`, and every request hung until the platform killed it at its
+ * 300s limit. Every device fell back to localStorage, which is exactly the
+ * "each device shows different data" symptom this all started with.
+ */
+export function createNodeHandler(webHandler: (request: Request) => Promise<Response>) {
+  return async function nodeHandler(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const host = req.headers.host ?? 'localhost';
+    const request = new Request(`https://${host}${req.url ?? '/'}`, {
+      method: req.method,
+      headers: toHeaders(req.headers),
+      body: await readBody(req),
+    });
+    const response = await webHandler(request);
+    res.statusCode = response.status;
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+    res.end(Buffer.from(await response.arrayBuffer()));
+  };
+}
+
 // neon()'s return value is callable as a tagged template exactly like
 // SqlClient describes, plus extra methods (.query(), etc.) this handler
 // never uses — the cast just narrows to the slice we actually call.
@@ -124,4 +169,6 @@ function defaultSql(): SqlClient {
   return neon(url) as unknown as SqlClient;
 }
 
-export default createHandler(((strings, ...values) => defaultSql()(strings, ...values)) as SqlClient);
+export default createNodeHandler(
+  createHandler(((strings, ...values) => defaultSql()(strings, ...values)) as SqlClient),
+);

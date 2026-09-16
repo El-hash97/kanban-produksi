@@ -86,4 +86,29 @@ describe('useBoardSync', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(pushBoard).toHaveBeenCalledWith(expect.objectContaining({ sandPerMixing: 3100 }));
   });
+
+  it('carries forward a newer shift schedule from another device instead of pushing a stale one', async () => {
+    renderHook(() => useBoardSync());
+    await vi.advanceTimersByTimeAsync(0); // initial pull; lastKnownUpdatedAt = epoch
+
+    const otherDeviceShift = { ...DEFAULT_SHIFT, tTimeSec: 55 };
+    vi.mocked(fetchBoard).mockResolvedValue({
+      data: {
+        ...basePersisted,
+        shiftConfig: otherDeviceShift,
+        shiftPresets: { [DEFAULT_SHIFT.shiftNo]: otherDeviceShift },
+      },
+      updatedAt: '2026-09-14T02:00:00.000Z',
+    });
+
+    // Edit something unrelated to the schedule (e.g. moving a lot).
+    useBoardStore.setState({ sandPerMixing: 3100 });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(useBoardStore.getState().shiftConfig.tTimeSec).toBe(55);
+    expect(pushBoard).toHaveBeenCalledWith(expect.objectContaining({
+      shiftConfig: otherDeviceShift,
+      sandPerMixing: 3100,
+    }));
+  });
 });

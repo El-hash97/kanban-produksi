@@ -29,3 +29,16 @@ describe('autoPlaceLots near a break', () => {
     expect(lots.map((l) => l.startMin)).toEqual([0, 4, 8, 12, 21]);
   });
 });
+
+describe('autoPlaceLots with a block entirely inside the empty gap', () => {
+  it('still yields 3 free columns between lots — the block consumes time even when no lot slot touches it', () => {
+    // Line stop 2-3 sits in the gap after lot@0 (1-4). No lot slot overlaps
+    // it, but it must still push everything after it by its 1-min duration:
+    // gap-before(1: minute 1) + gap-after(2: minutes 3,4) = 3 → next lot at 5.
+    const ls = [{
+      id: 'b1', type: 'CUSTOM' as const, label: 'LS', day: 'DAY' as const, startMin: 2, endMin: 3,
+    }];
+    const lots = autoPlaceLots([{ productCode: '2TR', count: 3 }], shift(ls));
+    expect(lots.map((l) => l.startMin)).toEqual([0, 5, 9]);
+  });
+});

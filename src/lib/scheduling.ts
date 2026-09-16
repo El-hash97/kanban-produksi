@@ -12,21 +12,10 @@ function makeId(prefix: string): string {
 
 /**
  * Advance `cursor` forward until a LOT_DURATION_MIN slot starting there
- * overlaps no block — checked against the lot's actual occupied width, not
- * the full pitch (a slot up to (pitch - LOT_DURATION_MIN) minutes before a
- * break still gets used instead of being skipped needlessly).
- *
- * On overlap, `pos` advances by exactly the overlapping block's own duration
- * (`b.endMin - b.startMin`), not a fixed pitch cycle and not a snap to the
- * block's absolute end. Whatever gap-before-the-block was already banked by
- * normal pitch spacing plus the gap-after-the-block always sum to exactly
- * (pitch - LOT_DURATION_MIN) — e.g. a 2-column gap before a break leaves a
- * 1-column gap after it, and a 1-column gap before leaves 2 after — instead
- * of always landing with zero gap right at the block's edge. This math holds
- * regardless of what the pitch itself currently is (see placeSequence, which
- * derives it from the shift's Takt Time), since this function never
- * references the pitch directly. Blocks may overlap each other; we loop
- * until the position is stable.
+ * overlaps no block. On overlap, `pos` jumps past the block by the block's own
+ * duration (`b.endMin - b.startMin`). Blocks may overlap each other; we loop
+ * until the position is stable. Used for the lot itself; the gap between lots
+ * is walked by advanceFree below.
  */
 function nextFreeStart(cursor: number, blocks: Range[]): number {
   let pos = cursor;
@@ -41,6 +30,28 @@ function nextFreeStart(cursor: number, blocks: Range[]): number {
     }
   }
   return pos;
+}
+
+/**
+ * Walk `minutes` of *free* (unblocked) time forward from `pos`, skipping over
+ * any block met on the way. This is what makes the gap between lots always
+ * equal (pitch - LOT_DURATION_MIN) worth of empty columns regardless of where
+ * a break / line stop falls: a block lying entirely inside the empty gap
+ * (touching no lot slot) still consumes its duration, and gap-before +
+ * gap-after a block always sum to the standard gap (2 before → 1 after, etc.).
+ */
+function advanceFree(pos: number, minutes: number, blocks: Range[]): number {
+  let cur = pos;
+  let remaining = minutes;
+  while (remaining > 0) {
+    const inside = blocks.find((b) => b.startMin <= cur && cur < b.endMin);
+    if (inside) { cur = inside.endMin; continue; }
+    const nextBlock = Math.min(...blocks.filter((b) => b.startMin > cur).map((b) => b.startMin));
+    const step = Math.min(remaining, nextBlock - cur);
+    cur += step;
+    remaining -= step;
+  }
+  return cur;
 }
 
 /**
@@ -73,7 +84,7 @@ export function placeSequence(
       endMin: cursor + LOT_DURATION_MIN,
       shifted: false,
     });
-    cursor += pitchMin;
+    cursor = advanceFree(cursor, pitchMin, blocks);
   }
   return result;
 }

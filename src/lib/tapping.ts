@@ -46,6 +46,9 @@ function shapeFor(lots: PlanLot[]): TappingShape {
  * still land in either of furnace 3's two slots); once it's empty, every
  * following pass uses the merged cycle, where furnace 3's two TR taps sit
  * back-to-back like furnace 1/2 instead of split around furnace 4.
+ *
+ * The cycle assigns furnaces only; the returned order / sequenceNo follows
+ * the kanban (see the sort at the end).
  */
 export function deriveTappingGroups(planLots: PlanLot[]): TappingGroup[] {
   const furnace3Queue = chunk(planLots.filter((l) => FURNACE3_CODES.includes(l.productCode)), 3);
@@ -86,6 +89,14 @@ export function deriveTappingGroups(planLots: PlanLot[]): TappingGroup[] {
       }
     }
   }
+
+  // The cycle above only decides *which furnace* each tap runs on. The tap
+  // *sequence* must follow the kanban (board order of each group's first
+  // lot) — a tap can't be poured after the lots it feeds are already molded.
+  // Without this, a KAI group the kanban placed right after a TR group was
+  // numbered after the next two TR taps, because each pass pulls F1,F1 first.
+  const kanbanIndex = new Map(planLots.map((l, i) => [l.id, i]));
+  groups.sort((a, b) => kanbanIndex.get(a.lots[0].id)! - kanbanIndex.get(b.lots[0].id)!);
 
   // `id` is derived from the group's first lot (not its position), so it
   // stays stable across recomputation — needed for manual furnace overrides

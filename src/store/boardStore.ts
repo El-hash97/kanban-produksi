@@ -77,6 +77,7 @@ interface BoardState extends PersistedBoardState {
   setGroup: (group: TeamGroup) => void;
   setSandPerMixing: (n: number) => void;
   addInformasi: (text: string) => void;
+  removeInformasi: (id: string) => void;
   applyPlanningTargets: (entries: { productCode: ProductCode; qty: number }[]) => void;
   setTappingFurnaceOverride: (tapId: string, furnaceId: FurnaceId) => void;
   resetBoard: () => void;
@@ -368,6 +369,10 @@ export const useBoardStore = create<BoardState>()(
         const { shiftConfig, informasiLog } = get();
         const note = { id: nextId('info'), at: nowMinForShift(shiftConfig), text };
         set({ informasiLog: [note, ...informasiLog] });
+      },
+
+      removeInformasi: (id) => {
+        set({ informasiLog: get().informasiLog.filter((n) => n.id !== id) });
       },
 
       // Reconciles current lot counts per product to `entries`' target qty in

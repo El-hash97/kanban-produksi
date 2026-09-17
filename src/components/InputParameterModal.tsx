@@ -208,6 +208,7 @@ function InputPlanningTab() {
 function InputInformasiTab() {
   const informasiLog = useBoardStore((s) => s.informasiLog);
   const addInformasi = useBoardStore((s) => s.addInformasi);
+  const removeInformasi = useBoardStore((s) => s.removeInformasi);
   const [text, setText] = useState('');
 
   const submit = () => {
@@ -231,7 +232,16 @@ function InputInformasiTab() {
       <ul className="space-y-1 max-h-40 overflow-auto">
         {informasiLog.length === 0 && <li className="text-gray-500">Belum ada informasi.</li>}
         {informasiLog.map((n) => (
-          <li key={n.id} className="border-b border-cyan-500/20 py-1">{n.text}</li>
+          <li key={n.id} className="flex items-center justify-between gap-2 border-b border-cyan-500/20 py-1">
+            <span>{n.text}</span>
+            <button
+              className="text-red-400 hover:text-red-200 shrink-0"
+              title="Hapus"
+              onClick={() => removeInformasi(n.id)}
+            >
+              ✕
+            </button>
+          </li>
         ))}
       </ul>
     </div>

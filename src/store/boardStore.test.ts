@@ -356,6 +356,15 @@ describe('boardStore', () => {
     expect(log.map((n) => n.text)).toEqual(['Ganti sand hopper', 'Mesin A maintenance']);
   });
 
+  it('removeInformasi deletes only the targeted note', () => {
+    useBoardStore.getState().addInformasi('Mesin A maintenance');
+    useBoardStore.getState().addInformasi('Ganti sand hopper');
+    const [toDelete] = useBoardStore.getState().informasiLog;
+    useBoardStore.getState().removeInformasi(toDelete.id);
+    const log = useBoardStore.getState().informasiLog;
+    expect(log.map((n) => n.text)).toEqual(['Mesin A maintenance']);
+  });
+
   it('addLineStop stores counterMeasure and category when given', () => {
     useBoardStore.getState().addLineStop(430, 440, 'Sand jam', 'Bersihkan hopper', 'AV');
     const stop = useBoardStore.getState().lineStops[0];

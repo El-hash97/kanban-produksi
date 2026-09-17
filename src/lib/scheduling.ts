@@ -153,26 +153,68 @@ export function makeLineStop(
   };
 }
 
+function blocksFor(shift: ShiftConfig, lineStops: LineStop[]): Range[] {
+  return [
+    ...shift.breaks.map((b) => ({ startMin: b.startMin, endMin: b.endMin })),
+    ...lineStops.map((s) => ({ startMin: s.startMin, endMin: s.endMin })),
+  ];
+}
+
+/**
+ * Re-place `lots` (order preserved), treating any lot flagged `pinned` as an
+ * immovable anchor — a manual Alt+drag (or long-press on touch), so it must
+ * survive later edits elsewhere instead of snapping back onto the standard
+ * pitch. Only the *runs of unpinned lots* between anchors (and before the
+ * first / after the last) are recomputed via the normal placeSequence
+ * cascade, resuming right after each anchor exactly as if it had been an
+ * ordinary lot placed there. `startCursor` seeds the very first run.
+ */
+function placePreservingPins(
+  lots: PlanLot[],
+  shift: ShiftConfig,
+  blocks: Range[],
+  startCursor: number,
+): PlanLot[] {
+  const pitchMin = pitchSecFromTakt(shift.tTimeSec) / 60;
+  const result: PlanLot[] = [];
+  let cursor = startCursor;
+  let i = 0;
+  while (i < lots.length) {
+    if (lots[i].pinned) {
+      const lot = lots[i];
+      result.push({ ...lot, shifted: false });
+      cursor = lot.startMin + pitchMin;
+      i += 1;
+      continue;
+    }
+    const runStart = i;
+    while (i < lots.length && !lots[i].pinned) i += 1;
+    const run = lots.slice(runStart, i);
+    const order = run.map((l) => ({ productCode: l.productCode, lotNo: l.lotNo }));
+    const placed = placeSequence(order, shift, blocks, cursor);
+    placed.forEach((p, idx) => {
+      const orig = run[idx];
+      result.push({
+        ...p, id: orig.id, pinned: false, shifted: p.startMin !== orig.startMin,
+      });
+    });
+    if (placed.length > 0) cursor = placed[placed.length - 1].startMin + pitchMin;
+  }
+  return result;
+}
+
 /**
  * Re-place existing lots (in their current order) around breaks + every line
- * stop. A lot whose start minute changes is flagged `shifted` (PRD §3.4).
+ * stop. A lot whose start minute changes is flagged `shifted` (PRD §3.4). Any
+ * lot the operator has manually dragged (`pinned`) keeps its exact time —
+ * see placePreservingPins.
  */
 export function applyLineStops(
   planLots: PlanLot[],
   shift: ShiftConfig,
   lineStops: LineStop[],
 ): PlanLot[] {
-  const order = planLots.map((l) => ({ productCode: l.productCode, lotNo: l.lotNo }));
-  const blocks: Range[] = [
-    ...shift.breaks.map((b) => ({ startMin: b.startMin, endMin: b.endMin })),
-    ...lineStops.map((s) => ({ startMin: s.startMin, endMin: s.endMin })),
-  ];
-  const replaced = placeSequence(order, shift, blocks);
-  return replaced.map((lot, i) => ({
-    ...lot,
-    id: planLots[i].id,
-    shifted: lot.startMin !== planLots[i].startMin,
-  }));
+  return placePreservingPins(planLots, shift, blocksFor(shift, lineStops), shift.productionStartMin);
 }
 
 /**
@@ -181,7 +223,10 @@ export function applyLineStops(
  * operator manually drags a plan lot to a new time (line-stop-without-a-
  * record, or a manual correction). Lots before `fromIndex` are untouched;
  * lots from `fromIndex` on cascade with the normal pitch/break/line-stop
- * rules, same as applyLineStops, just anchored at a custom cursor.
+ * rules (respecting any earlier pin among them, same as applyLineStops),
+ * anchored at a custom cursor. The dragged lot itself (the first of the
+ * replaced run) is then marked `pinned`, so it survives later reflows
+ * triggered by unrelated line stops/breaks instead of snapping back.
  */
 export function reflowFrom(
   planLots: PlanLot[],
@@ -192,17 +237,8 @@ export function reflowFrom(
 ): PlanLot[] {
   const before = planLots.slice(0, fromIndex);
   const toReplace = planLots.slice(fromIndex);
-  const order = toReplace.map((l) => ({ productCode: l.productCode, lotNo: l.lotNo }));
-  const blocks: Range[] = [
-    ...shift.breaks.map((b) => ({ startMin: b.startMin, endMin: b.endMin })),
-    ...lineStops.map((s) => ({ startMin: s.startMin, endMin: s.endMin })),
-  ];
-  const replaced = placeSequence(order, shift, blocks, overrideStartMin);
-  const after = replaced.map((lot, i) => ({
-    ...lot,
-    id: toReplace[i].id,
-    shifted: lot.startMin !== toReplace[i].startMin,
-  }));
+  const after = placePreservingPins(toReplace, shift, blocksFor(shift, lineStops), overrideStartMin);
+  if (after.length > 0) after[0] = { ...after[0], pinned: true };
   return [...before, ...after];
 }
 

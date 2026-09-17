@@ -59,6 +59,12 @@ export interface PlanLot {
   startMin: number;
   endMin: number;
   shifted: boolean;
+  // Set when the operator manually Alt+drags (or long-presses on touch) this
+  // lot to a real-time slot. A pinned lot is an immovable anchor for every
+  // later reflow (applyLineStops/reflowFrom) — only unpinned lots keep
+  // cascading around breaks/line stops; a pin is cleared only by dragging
+  // that lot again.
+  pinned?: boolean;
 }
 
 export interface LineStop {

@@ -2,10 +2,16 @@ import { useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { toHHmm } from '../lib/time';
 import TimeSelect from './TimeSelect';
+import type { InformasiNote, LineStop } from '../domain/types';
+
+type Row =
+  | { kind: 'stop'; time: number; stop: LineStop }
+  | { kind: 'note'; time: number; note: InformasiNote };
 
 export default function LineStopPanel() {
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const lineStops = useBoardStore((s) => s.lineStops);
+  const informasiLog = useBoardStore((s) => s.informasiLog);
   const updateLineStop = useBoardStore((s) => s.updateLineStop);
   const removeLineStop = useBoardStore((s) => s.removeLineStop);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -26,6 +32,16 @@ export default function LineStopPanel() {
     setEditingId(null);
   };
 
+  // Notes entered via Input Parameter's "Input Informasi" tab share this same
+  // timeline table with line stops (merged and sorted by time), rather than
+  // living only inside that modal — the INFORMATION column (renamed from
+  // CAT, which still shows a line stop's AV/PE category) is where a note's
+  // free text appears.
+  const rows: Row[] = [
+    ...lineStops.map((stop): Row => ({ kind: 'stop', time: stop.startMin, stop })),
+    ...informasiLog.map((note): Row => ({ kind: 'note', time: note.at, note })),
+  ].sort((a, b) => a.time - b.time);
+
   return (
     <div className="text-white text-xs">
       <div className="bg-red-900/40 px-2 py-1 font-bold text-green-400">INFORMASI LINE STOP</div>
@@ -37,60 +53,76 @@ export default function LineStopPanel() {
             <th className="text-left px-2 py-1">DUR</th>
             <th className="text-left px-2 py-1">PROBLEM</th>
             <th className="text-left px-2 py-1">COUNTER MEASURE</th>
-            <th className="px-2 py-1">CAT</th>
+            <th className="px-2 py-1">INFORMATION</th>
             <th className="px-2 py-1"></th>
           </tr>
         </thead>
         <tbody>
-          {lineStops.length === 0 && (
-            <tr><td colSpan={6} className="px-2 py-2 text-gray-500">Belum ada line stop.</td></tr>
+          {rows.length === 0 && (
+            <tr><td colSpan={6} className="px-2 py-2 text-gray-500">Belum ada line stop / informasi.</td></tr>
           )}
-          {lineStops.map((s) => (
-            <tr key={s.id} className="border-b border-red-600/20">
-              {editingId === s.id ? (
-                <>
-                  <td className="px-2 py-1" colSpan={2}>
-                    <span className="inline-flex items-center gap-2">
-                      <TimeSelect value={editStart} onChange={setEditStart} shift={shiftConfig} />
-                      <span>–</span>
-                      <TimeSelect value={editEnd} onChange={setEditEnd} shift={shiftConfig} />
-                    </span>
-                  </td>
-                  <td className="px-2 py-1">
-                    <input
-                      className="bg-black border border-cyan-500 px-1 w-full"
-                      value={editKet}
-                      onChange={(e) => setEditKet(e.target.value)}
-                    />
-                  </td>
-                  <td className="px-2 py-1 text-gray-500">{s.counterMeasure ?? ''}</td>
-                  <td className="px-2 py-1 text-center text-gray-500">{s.category ?? 'AV'}</td>
-                  <td className="px-2 py-1 text-right whitespace-nowrap">
-                    <button className="text-green-400 hover:text-green-200 mr-2" onClick={saveEdit}>✓</button>
-                    <button className="text-gray-400 hover:text-gray-200" onClick={() => setEditingId(null)}>✕</button>
-                  </td>
-                </>
-              ) : (
-                <>
-                  <td className="px-2 py-1 tabular-nums">{toHHmm(s.startMin)}–{toHHmm(s.endMin)}</td>
-                  <td className="px-2 py-1">{s.durationMin}'</td>
-                  <td className="px-2 py-1">{s.keterangan}</td>
-                  <td className="px-2 py-1">{s.counterMeasure ?? ''}</td>
-                  <td className="px-2 py-1 text-center">{s.category ?? 'AV'}</td>
-                  <td className="px-2 py-1 text-right whitespace-nowrap">
-                    <button
-                      className="text-cyan-400 hover:text-cyan-200 mr-2"
-                      title="Ubah"
-                      onClick={() => startEdit(s.id, s.startMin, s.endMin, s.keterangan)}
-                    >
-                      ✎
-                    </button>
-                    <button className="text-red-400 hover:text-red-200" onClick={() => removeLineStop(s.id)}>✕</button>
-                  </td>
-                </>
-              )}
-            </tr>
-          ))}
+          {rows.map((row) => {
+            if (row.kind === 'note') {
+              const { note } = row;
+              return (
+                <tr key={note.id} className="border-b border-red-600/20">
+                  <td className="px-2 py-1 tabular-nums">{toHHmm(note.at)}</td>
+                  <td className="px-2 py-1">–</td>
+                  <td className="px-2 py-1">–</td>
+                  <td className="px-2 py-1">–</td>
+                  <td className="px-2 py-1 text-center">{note.text}</td>
+                  <td className="px-2 py-1"></td>
+                </tr>
+              );
+            }
+            const s = row.stop;
+            return (
+              <tr key={s.id} className="border-b border-red-600/20">
+                {editingId === s.id ? (
+                  <>
+                    <td className="px-2 py-1" colSpan={2}>
+                      <span className="inline-flex items-center gap-2">
+                        <TimeSelect value={editStart} onChange={setEditStart} shift={shiftConfig} />
+                        <span>–</span>
+                        <TimeSelect value={editEnd} onChange={setEditEnd} shift={shiftConfig} />
+                      </span>
+                    </td>
+                    <td className="px-2 py-1">
+                      <input
+                        className="bg-black border border-cyan-500 px-1 w-full"
+                        value={editKet}
+                        onChange={(e) => setEditKet(e.target.value)}
+                      />
+                    </td>
+                    <td className="px-2 py-1 text-gray-500">{s.counterMeasure ?? ''}</td>
+                    <td className="px-2 py-1 text-center text-gray-500">{s.category ?? 'AV'}</td>
+                    <td className="px-2 py-1 text-right whitespace-nowrap">
+                      <button className="text-green-400 hover:text-green-200 mr-2" onClick={saveEdit}>✓</button>
+                      <button className="text-gray-400 hover:text-gray-200" onClick={() => setEditingId(null)}>✕</button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-2 py-1 tabular-nums">{toHHmm(s.startMin)}–{toHHmm(s.endMin)}</td>
+                    <td className="px-2 py-1">{s.durationMin}'</td>
+                    <td className="px-2 py-1">{s.keterangan}</td>
+                    <td className="px-2 py-1">{s.counterMeasure ?? ''}</td>
+                    <td className="px-2 py-1 text-center">{s.category ?? 'AV'}</td>
+                    <td className="px-2 py-1 text-right whitespace-nowrap">
+                      <button
+                        className="text-cyan-400 hover:text-cyan-200 mr-2"
+                        title="Ubah"
+                        onClick={() => startEdit(s.id, s.startMin, s.endMin, s.keterangan)}
+                      >
+                        ✎
+                      </button>
+                      <button className="text-red-400 hover:text-red-200" onClick={() => removeLineStop(s.id)}>✕</button>
+                    </td>
+                  </>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

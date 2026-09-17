@@ -82,22 +82,6 @@ export interface LotRequest {
   count: number;
 }
 
-export interface PlanningEntry {
-  productCode: ProductCode;
-  qty: number;
-  sandMeasTimeMin: number;
-}
-
-export interface PlanningSnapshot {
-  id: string;
-  at: number;
-  entries: PlanningEntry[];
-  totalQty: number;
-  taktTimeSec: number;
-  timeBeginMin: number;
-  group: TeamGroup;
-  sandPerMixing: number;
-}
 
 export interface InformasiNote {
   id: string;

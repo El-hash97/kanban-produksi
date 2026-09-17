@@ -16,7 +16,6 @@ beforeEach(() => {
     furnaceOverrides: {},
     shiftData: {},
     activeDay: 'DAY',
-    planningHistory: [],
     informasiLog: [],
     sandPerMixing: 2700,
   });
@@ -357,18 +356,6 @@ describe('boardStore', () => {
     expect(log.map((n) => n.text)).toEqual(['Ganti sand hopper', 'Mesin A maintenance']);
   });
 
-  it('logPlanningSnapshot records a planning entry with the newest first', () => {
-    useBoardStore.getState().logPlanningSnapshot(
-      [{ productCode: '2TR', qty: 10, sandMeasTimeMin: 9.5 }],
-      'RED',
-      430,
-    );
-    const [snap] = useBoardStore.getState().planningHistory;
-    expect(snap.totalQty).toBe(10);
-    expect(snap.group).toBe('RED');
-    expect(snap.timeBeginMin).toBe(430);
-  });
-
   it('addLineStop stores counterMeasure and category when given', () => {
     useBoardStore.getState().addLineStop(430, 440, 'Sand jam', 'Bersihkan hopper', 'AV');
     const stop = useBoardStore.getState().lineStops[0];
@@ -431,7 +418,7 @@ describe('pickPersistedState', () => {
     const persisted = pickPersistedState(useBoardStore.getState());
     expect(Object.keys(persisted).sort()).toEqual([
       'activeDay', 'furnaceOverrides', 'informasiLog', 'lineStops',
-      'planLots', 'planningHistory', 'products', 'sandPerMixing',
+      'planLots', 'products', 'sandPerMixing',
       'shiftConfig', 'shiftData', 'shiftPresets',
     ]);
   });

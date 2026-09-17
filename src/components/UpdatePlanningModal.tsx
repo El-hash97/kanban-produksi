@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import type { ProductCode } from '../domain/types';
 
-const HISTORY_COLUMNS: ProductCode[] = ['1TR', '2TR', 'KAI', 'CRANK'];
-
 /** Keeps only digits and strips a leading zero once a further digit follows,
  * so a controlled number field never shows "05" while the user is typing. */
 function sanitizeDigits(raw: string): string {
@@ -13,12 +11,9 @@ function sanitizeDigits(raw: string): string {
 export default function UpdatePlanningModal({ onClose }: { onClose: () => void }) {
   const products = useBoardStore((s) => s.products);
   const planLots = useBoardStore((s) => s.planLots);
-  const planningHistory = useBoardStore((s) => s.planningHistory);
   const sandPerMixing = useBoardStore((s) => s.sandPerMixing);
   const setSandPerMixing = useBoardStore((s) => s.setSandPerMixing);
   const applyPlanningTargets = useBoardStore((s) => s.applyPlanningTargets);
-  const logPlanningSnapshot = useBoardStore((s) => s.logPlanningSnapshot);
-  const shiftConfig = useBoardStore((s) => s.shiftConfig);
 
   const currentCounts = useMemo(() => {
     const counts: Record<ProductCode, number> = {
@@ -35,17 +30,9 @@ export default function UpdatePlanningModal({ onClose }: { onClose: () => void }
   );
   const [sandQty, setSandQty] = useState(String(sandPerMixing));
 
-  // Logs into the same planningHistory Input Planning writes to, so the two
-  // entry points share one combined history (spec §5). This window doesn't
-  // re-ask for Group/Time Begin, so the snapshot carries the shift's current
-  // values for those.
   const submit = () => {
     applyPlanningTargets(products.map((p) => ({ productCode: p.code, qty: Number(target[p.code]) || 0 })));
     setSandPerMixing(Number(sandQty) || 0);
-    const entries = products.map((p) => ({
-      productCode: p.code, qty: Number(target[p.code]) || 0, sandMeasTimeMin: p.sandMeasTimeMin,
-    }));
-    logPlanningSnapshot(entries, shiftConfig.group, shiftConfig.productionStartMin);
   };
 
   return (
@@ -100,34 +87,6 @@ export default function UpdatePlanningModal({ onClose }: { onClose: () => void }
           <button className="bg-cyan-700 hover:bg-cyan-600 px-3 py-1 rounded" onClick={submit}>
             UPDATE PLANNING
           </button>
-
-          <div className="pt-2 border-t border-cyan-500/30">
-            <div className="text-green-400 font-bold mb-1">HISTORY PLANNING</div>
-            {planningHistory.length === 0 ? (
-              <div className="text-gray-500">No data to display</div>
-            ) : (
-              <table className="w-full">
-                <thead className="text-green-400">
-                  <tr>
-                    <th>No</th>
-                    {HISTORY_COLUMNS.map((code) => <th key={code}>{code === 'KAI' ? 'CAMS' : code}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {planningHistory.map((snap, i) => (
-                    <tr key={snap.id}>
-                      <td className="text-center">{planningHistory.length - i}</td>
-                      {HISTORY_COLUMNS.map((code) => (
-                        <td key={code} className="text-center">
-                          {snap.entries.find((e) => e.productCode === code)?.qty ?? 0}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
         </div>
       </div>
     </div>

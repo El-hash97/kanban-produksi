@@ -22,7 +22,6 @@ const basePersisted = {
   furnaceOverrides: {},
   shiftData: {},
   activeDay: 'DAY' as const,
-  planningHistory: [],
   informasiLog: [],
   sandPerMixing: 2700,
 };

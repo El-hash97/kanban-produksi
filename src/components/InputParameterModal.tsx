@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import type {
-  LineStopCategory, PlanningEntry, ProductCode, TeamGroup,
+  LineStopCategory, ProductCode, TeamGroup,
 } from '../domain/types';
 import TimeSelect from './TimeSelect';
 import { nowMinForShift } from '../lib/time';
@@ -87,7 +87,6 @@ function InputPlanningTab() {
   const setGroup = useBoardStore((s) => s.setGroup);
   const setSandPerMixing = useBoardStore((s) => s.setSandPerMixing);
   const setTaktTime = useBoardStore((s) => s.setTaktTime);
-  const logPlanningSnapshot = useBoardStore((s) => s.logPlanningSnapshot);
 
   const [qty, setQty] = useState<Record<ProductCode, string>>(EMPTY_QTY);
   const [sandTime, setSandTime] = useState<Record<ProductCode, number>>(
@@ -101,8 +100,8 @@ function InputPlanningTab() {
   const total = Object.values(qty).reduce((a, b) => a + (Number(b) || 0), 0);
 
   const submit = () => {
-    const entries: PlanningEntry[] = products
-      .map((p) => ({ productCode: p.code, qty: Number(qty[p.code]) || 0, sandMeasTimeMin: sandTime[p.code] }))
+    const entries = products
+      .map((p) => ({ productCode: p.code, qty: Number(qty[p.code]) || 0 }))
       .filter((e) => e.qty > 0);
     if (entries.length === 0) return;
     setGroup(group);
@@ -110,7 +109,6 @@ function InputPlanningTab() {
     setSandPerMixing(Number(sandQty) || 0);
     setTaktTime(Math.max(1, Number(taktTime) || 1));
     addLots(entries.map((e) => ({ productCode: e.productCode, count: e.qty })));
-    logPlanningSnapshot(entries, group, timeBegin);
     setQty(EMPTY_QTY);
   };
 

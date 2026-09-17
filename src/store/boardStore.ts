@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   DayType, FurnaceId, InformasiNote, LineStop, LineStopCategory, LotRequest, PlanLot,
-  PlanningEntry, PlanningSnapshot, Product, ProductCode, ShiftConfig, TeamGroup,
+  Product, ProductCode, ShiftConfig, TeamGroup,
 } from '../domain/types';
 import {
   buildShiftConfig, DEFAULT_PRODUCTS, DEFAULT_SHIFT, ensureDandori, migrateShift,
@@ -47,7 +47,6 @@ export interface PersistedBoardState {
   // Auto-set from the real date on load (persist merge); overridable for
   // the running session via setActiveDay.
   activeDay: DayType;
-  planningHistory: PlanningSnapshot[];
   informasiLog: InformasiNote[];
   sandPerMixing: number;
 }
@@ -78,7 +77,6 @@ interface BoardState extends PersistedBoardState {
   setGroup: (group: TeamGroup) => void;
   setSandPerMixing: (n: number) => void;
   addInformasi: (text: string) => void;
-  logPlanningSnapshot: (entries: PlanningEntry[], group: TeamGroup, timeBeginMin: number) => void;
   applyPlanningTargets: (entries: { productCode: ProductCode; qty: number }[]) => void;
   setTappingFurnaceOverride: (tapId: string, furnaceId: FurnaceId) => void;
   resetBoard: () => void;
@@ -101,11 +99,11 @@ function nextId(prefix: string): string {
 export function pickPersistedState(state: BoardState): PersistedBoardState {
   const {
     shiftConfig, shiftPresets, products, planLots, lineStops,
-    furnaceOverrides, shiftData, activeDay, planningHistory, informasiLog, sandPerMixing,
+    furnaceOverrides, shiftData, activeDay, informasiLog, sandPerMixing,
   } = state;
   return {
     shiftConfig, shiftPresets, products, planLots, lineStops,
-    furnaceOverrides, shiftData, activeDay, planningHistory, informasiLog, sandPerMixing,
+    furnaceOverrides, shiftData, activeDay, informasiLog, sandPerMixing,
   };
 }
 
@@ -120,7 +118,6 @@ export const useBoardStore = create<BoardState>()(
       furnaceOverrides: {},
       shiftData: {},
       activeDay: 'DAY',
-      planningHistory: [],
       informasiLog: [],
       sandPerMixing: 2700,
 
@@ -371,21 +368,6 @@ export const useBoardStore = create<BoardState>()(
         const { shiftConfig, informasiLog } = get();
         const note = { id: nextId('info'), at: nowMinForShift(shiftConfig), text };
         set({ informasiLog: [note, ...informasiLog] });
-      },
-
-      logPlanningSnapshot: (entries, group, timeBeginMin) => {
-        const { shiftConfig, sandPerMixing, planningHistory } = get();
-        const snapshot: PlanningSnapshot = {
-          id: nextId('plan'),
-          at: nowMinForShift(shiftConfig),
-          entries,
-          totalQty: entries.reduce((sum, e) => sum + e.qty, 0),
-          taktTimeSec: shiftConfig.tTimeSec,
-          timeBeginMin,
-          group,
-          sandPerMixing,
-        };
-        set({ planningHistory: [snapshot, ...planningHistory] });
       },
 
       // Reconciles current lot counts per product to `entries`' target qty in

@@ -14,7 +14,6 @@ const persisted: PersistedBoardState = {
   furnaceOverrides: {},
   shiftData: {},
   activeDay: 'DAY',
-  planningHistory: [],
   informasiLog: [],
   sandPerMixing: 2700,
 };

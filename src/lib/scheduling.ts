@@ -237,7 +237,12 @@ export function reflowFrom(
 ): PlanLot[] {
   const before = planLots.slice(0, fromIndex);
   const toReplace = planLots.slice(fromIndex);
-  const after = placePreservingPins(toReplace, shift, blocksFor(shift, lineStops), overrideStartMin);
+  // The lot actually being dragged (toReplace[0]) must always be freely
+  // re-placed at the new target, even if an *earlier* drag had already
+  // pinned it — otherwise a pinned lot could never be dragged again. Any
+  // *other* pin further down the list still holds (same as applyLineStops).
+  const toPlace = toReplace.map((l, i) => (i === 0 ? { ...l, pinned: false } : l));
+  const after = placePreservingPins(toPlace, shift, blocksFor(shift, lineStops), overrideStartMin);
   if (after.length > 0) after[0] = { ...after[0], pinned: true };
   return [...before, ...after];
 }

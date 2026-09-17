@@ -61,4 +61,13 @@ describe('manual drag pins a lot against later reflows', () => {
     expect(draggedAgain[0]).toMatchObject({ startMin: 450, pinned: true });
     expect(draggedAgain[2]).toMatchObject({ startMin: 700, pinned: true }); // untouched
   });
+
+  it('a pinned lot can be dragged again — its own earlier pin never blocks a fresh drag', () => {
+    const lots = autoPlaceLots([{ productCode: '2TR', count: 3 }], shift); // 420, 424, 428
+    const draggedOnce = reflowFrom(lots, shift, [], 1, 500); // pin lot2 @500
+    expect(draggedOnce[1]).toMatchObject({ startMin: 500, pinned: true });
+
+    const draggedTwice = reflowFrom(draggedOnce, shift, [], 1, 650); // drag that same lot again
+    expect(draggedTwice[1]).toMatchObject({ startMin: 650, pinned: true });
+  });
 });

@@ -306,7 +306,7 @@ export default function TimeGrid() {
     <div className="border-2 border-red-600/70 text-white relative">
       {/* minute header */}
       <div className="flex border-b-2 border-red-600/60 text-[10px] text-yellow-300">
-        <div className="w-24 shrink-0 px-1 py-0.5 font-bold">WAKTU</div>
+        <div className="w-24 shrink-0 px-1 py-0.5 font-bold border-r-[3px] border-red-600/55">WAKTU</div>
         <div className="grid flex-1" style={{ gridTemplateColumns: 'repeat(60, 1fr)' }}>
           {MINUTE_HEADERS.map((m) => (
             <div key={m} style={{ gridColumn: `${m - 2} / span 5` }} className="text-center">
@@ -318,7 +318,7 @@ export default function TimeGrid() {
 
       {hours.map((hour) => (
         <div key={hour} className="flex border-b-2 border-red-600/50">
-          <div className="w-24 shrink-0 flex flex-col text-[10px]">
+          <div className="w-24 shrink-0 flex flex-col text-[10px] border-r-[3px] border-red-600/55">
             <div className="px-1 font-bold text-cyan-200">{toHHmm(hour)}</div>
             <div className="px-1 text-yellow-400 border-t border-red-600/30">PLN</div>
             <div className="px-1 text-yellow-400 border-t border-red-600/30">ACT</div>

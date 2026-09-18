@@ -27,6 +27,14 @@ export default function App() {
   const [showUpdatePlanning, setShowUpdatePlanning] = useState(false);
   const resetBoard = useBoardStore((s) => s.resetBoard);
 
+  // Reset wipes lots/line stops/furnace overrides for both shifts and can't
+  // be undone — confirm before actually clearing the shared board.
+  const handleReset = () => {
+    if (window.confirm('Yakin ingin reset board? Semua nomor lot, informasi line stop, dan urutan tapping furnace akan dihapus.')) {
+      resetBoard();
+    }
+  };
+
   return (
     <div className="min-h-full bg-black p-2 text-white space-y-1">
       <BoardHeader />
@@ -82,7 +90,7 @@ export default function App() {
             >
               ⚙ Setting
             </button>
-            <button className="px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600" onClick={resetBoard}>
+            <button className="px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600" onClick={handleReset}>
               Reset
             </button>
           </div>

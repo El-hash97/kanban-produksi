@@ -6,6 +6,7 @@ import ModelSummary from './components/ModelSummary';
 import BreakSettingsModal from './components/BreakSettingsModal';
 import InputParameterModal from './components/InputParameterModal';
 import UpdatePlanningModal from './components/UpdatePlanningModal';
+import ConfirmModal from './components/ConfirmModal';
 import TappingPanel from './components/TappingPanel';
 import SyncStatusBadge from './components/SyncStatusBadge';
 import { useBoardStore } from './store/boardStore';
@@ -25,14 +26,14 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showInputParameter, setShowInputParameter] = useState(false);
   const [showUpdatePlanning, setShowUpdatePlanning] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const resetBoard = useBoardStore((s) => s.resetBoard);
 
   // Reset wipes lots/line stops/furnace overrides for both shifts and can't
   // be undone — confirm before actually clearing the shared board.
-  const handleReset = () => {
-    if (window.confirm('Yakin ingin reset board? Semua nomor lot, informasi line stop, dan urutan tapping furnace akan dihapus.')) {
-      resetBoard();
-    }
+  const confirmReset = () => {
+    resetBoard();
+    setShowResetConfirm(false);
   };
 
   return (
@@ -90,7 +91,7 @@ export default function App() {
             >
               ⚙ Setting
             </button>
-            <button className="px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600" onClick={handleReset}>
+            <button className="px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600" onClick={() => setShowResetConfirm(true)}>
               Reset
             </button>
           </div>
@@ -103,6 +104,15 @@ export default function App() {
       {showSettings && <BreakSettingsModal onClose={() => setShowSettings(false)} />}
       {showInputParameter && <InputParameterModal onClose={() => setShowInputParameter(false)} />}
       {showUpdatePlanning && <UpdatePlanningModal onClose={() => setShowUpdatePlanning(false)} />}
+      {showResetConfirm && (
+        <ConfirmModal
+          title="RESET BOARD"
+          message="Yakin ingin reset board? Semua nomor lot, informasi line stop, dan urutan tapping furnace akan dihapus."
+          confirmLabel="Reset"
+          onConfirm={confirmReset}
+          onCancel={() => setShowResetConfirm(false)}
+        />
+      )}
     </div>
   );
 }

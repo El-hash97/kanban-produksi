@@ -99,6 +99,8 @@ export default function TappingPanel() {
   const shiftConfig = useBoardStore((s) => s.shiftConfig);
   const furnaceOverrides = useBoardStore((s) => s.furnaceOverrides);
   const setTappingFurnaceOverride = useBoardStore((s) => s.setTappingFurnaceOverride);
+  const tappingLocked = useBoardStore((s) => s.tappingLocked);
+  const setTappingLocked = useBoardStore((s) => s.setTappingLocked);
   const nowMin = useNowMin(shiftConfig);
 
   const groups = useMemo(() => {
@@ -109,7 +111,16 @@ export default function TappingPanel() {
 
   return (
     <div className="text-white text-xs">
-      <div className="bg-cyan-900/40 px-2 py-1 font-bold text-green-400">URUTAN TAPPING FURNACE</div>
+      <div className="bg-cyan-900/40 px-2 py-1 font-bold text-green-400 flex items-center justify-between">
+        <span>URUTAN TAPPING FURNACE</span>
+        <button
+          className={`px-2 py-0.5 rounded font-bold ${tappingLocked ? 'bg-red-700 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+          title={tappingLocked ? 'Buka kunci untuk mengubah urutan tapping' : 'Kunci urutan tapping supaya tidak berubah tidak sengaja'}
+          onClick={() => setTappingLocked(!tappingLocked)}
+        >
+          {tappingLocked ? '🔒 TERKUNCI' : '🔓 KUNCI'}
+        </button>
+      </div>
       {groups.length === 0 ? (
         <div className="p-2 text-gray-500">Belum ada tapping.</div>
       ) : (
@@ -123,7 +134,9 @@ export default function TappingPanel() {
               <TappingToken
                 key={g.id}
                 group={g}
-                onClickFurnace={() => setTappingFurnaceOverride(g.id, nextFurnaceId(g.furnaceId))}
+                onClickFurnace={tappingLocked ? undefined : (
+                  () => setTappingFurnaceOverride(g.id, nextFurnaceId(g.furnaceId))
+                )}
               />
             ))}
           </div>

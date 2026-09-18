@@ -15,6 +15,7 @@ const persisted: PersistedBoardState = {
   shiftData: {},
   activeDay: 'DAY',
   informasiLog: [],
+  tappingLocked: false,
   sandPerMixing: 2700,
 };
 const snapshot = { data: persisted, updatedAt: '2026-09-14T00:00:00.000Z' };

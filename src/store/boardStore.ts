@@ -49,6 +49,11 @@ export interface PersistedBoardState {
   activeDay: DayType;
   informasiLog: InformasiNote[];
   sandPerMixing: number;
+  // Guards the Tapping Furnace panel's cycle-tap buttons against an
+  // accidental click reassigning a furnace mid-production. Shared across
+  // devices like the rest of the board, and toggled back off deliberately
+  // whenever the tapping order actually needs changing.
+  tappingLocked: boolean;
 }
 
 interface BoardState extends PersistedBoardState {
@@ -80,6 +85,7 @@ interface BoardState extends PersistedBoardState {
   removeInformasi: (id: string) => void;
   applyPlanningTargets: (entries: { productCode: ProductCode; qty: number }[]) => void;
   setTappingFurnaceOverride: (tapId: string, furnaceId: FurnaceId) => void;
+  setTappingLocked: (locked: boolean) => void;
   resetBoard: () => void;
 }
 
@@ -100,11 +106,11 @@ function nextId(prefix: string): string {
 export function pickPersistedState(state: BoardState): PersistedBoardState {
   const {
     shiftConfig, shiftPresets, products, planLots, lineStops,
-    furnaceOverrides, shiftData, activeDay, informasiLog, sandPerMixing,
+    furnaceOverrides, shiftData, activeDay, informasiLog, sandPerMixing, tappingLocked,
   } = state;
   return {
     shiftConfig, shiftPresets, products, planLots, lineStops,
-    furnaceOverrides, shiftData, activeDay, informasiLog, sandPerMixing,
+    furnaceOverrides, shiftData, activeDay, informasiLog, sandPerMixing, tappingLocked,
   };
 }
 
@@ -121,6 +127,7 @@ export const useBoardStore = create<BoardState>()(
       activeDay: 'DAY',
       informasiLog: [],
       sandPerMixing: 2700,
+      tappingLocked: false,
 
       addLots: (requests) => {
         const {
@@ -410,6 +417,8 @@ export const useBoardStore = create<BoardState>()(
         const { furnaceOverrides } = get();
         set({ furnaceOverrides: { ...furnaceOverrides, [tapId]: furnaceId } });
       },
+
+      setTappingLocked: (locked) => set({ tappingLocked: locked }),
 
       // Reset only clears today's production data (lots + line stops). Shift
       // settings — including any Dandori/Wakom/Istirahat breaks the user has

@@ -23,6 +23,7 @@ const basePersisted = {
   shiftData: {},
   activeDay: 'DAY' as const,
   informasiLog: [],
+  tappingLocked: false,
   sandPerMixing: 2700,
 };
 

@@ -17,6 +17,7 @@ beforeEach(() => {
     shiftData: {},
     activeDay: 'DAY',
     informasiLog: [],
+    tappingLocked: false,
     sandPerMixing: 2700,
   });
 });
@@ -307,6 +308,14 @@ describe('boardStore', () => {
     expect(useBoardStore.getState().furnaceOverrides).toEqual({});
   });
 
+  it('setTappingLocked toggles the tapping-order lock', () => {
+    expect(useBoardStore.getState().tappingLocked).toBe(false);
+    useBoardStore.getState().setTappingLocked(true);
+    expect(useBoardStore.getState().tappingLocked).toBe(true);
+    useBoardStore.getState().setTappingLocked(false);
+    expect(useBoardStore.getState().tappingLocked).toBe(false);
+  });
+
   it('switching to a shift never visited before shows no furnace overrides yet (none saved for it)', () => {
     useBoardStore.getState().setTappingFurnaceOverride('tap-lot-1', 3);
     useBoardStore.getState().setShiftNo(2);
@@ -428,7 +437,7 @@ describe('pickPersistedState', () => {
     expect(Object.keys(persisted).sort()).toEqual([
       'activeDay', 'furnaceOverrides', 'informasiLog', 'lineStops',
       'planLots', 'products', 'sandPerMixing',
-      'shiftConfig', 'shiftData', 'shiftPresets',
+      'shiftConfig', 'shiftData', 'shiftPresets', 'tappingLocked',
     ]);
   });
 });
